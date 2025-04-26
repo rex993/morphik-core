@@ -1,0 +1,19 @@
+FROM node:20-slim
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    bash \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy application files
+COPY ee/ui-component/package*.json ./
+
+COPY ee/ui-component .
+
+EXPOSE 3000
+CMD ["npm", "start"]
