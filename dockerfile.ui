@@ -10,10 +10,19 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy application files
+# Copy package files and install dependencies
 COPY ee/ui-component/package*.json ./
+RUN npm install --legacy-peer-deps
+RUN npm install -g next@14.2.16 react@18.2.0 react-dom@18.2.0
 
+# Copy the rest of the application
 COPY ee/ui-component .
 
+# Set ownership to node user (which already exists in the base image)
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE 3000
-CMD ["npm", "start"]
+
+CMD ["npm", "run", "dev"]
