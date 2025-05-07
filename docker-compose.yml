@@ -129,6 +129,21 @@ services:
       - morphik-network
     entrypoint: ["/ollama-entrypoint.sh"]
 
+  ui:
+    build:
+      context: .
+      dockerfile: dockerfile.ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ee/ui-component:/app
+    working_dir: /app
+    command: npm run dev
+    depends_on:
+      - morphik
+    networks:
+      - morphik-network
+
 networks:
   morphik-network:
     driver: bridge
