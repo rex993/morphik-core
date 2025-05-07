@@ -449,6 +449,11 @@ class TelemetryService:
                     cls._instance._initialize()
         return cls._instance
 
+    def __init__(self):
+        # Ensure metadata extractors are always set up on instance creation
+        if not hasattr(self, "ingest_text_metadata"):
+            self._setup_metadata_extractors()
+
     def _initialize(self):
         if not TELEMETRY_ENABLED:
             return

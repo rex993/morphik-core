@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS vector_embeddings (
     chunk_number INTEGER,
     content TEXT,
     chunk_metadata TEXT,
-    embedding vector(768),
+    embedding vector({{embedding_dim}}),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

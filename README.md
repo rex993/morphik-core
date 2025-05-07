@@ -31,6 +31,17 @@ The best part? Morphik has a [free tier](https://www.morphik.ai/pricing) and is 
 ## Table of Contents
 - [Getting Started with Morphik](#getting-started-with-morphik-recommended)
 - [Self-hosting the open-source version](#self-hosting-the-open-source-version)
+### ⚡️ Customizing Embedding Vector Dimension
+
+If you want to change the embedding vector dimension used by the database, update the `[embedding].dimensions` value in `morphik.toml`.
+
+**Before building the Postgres Docker image, you must generate the parameterized SQL:**
+
+```sh
+python scripts/generate_init_sql.py
+```
+
+This will create `build/init.sql` with the correct embedding dimension. The Docker build will then use this file automatically.
 - [Using Morphik](#using-morphik)
 - [Contributing](#contributing)
 - [Open source vs paid](#open-source-vs-paid)

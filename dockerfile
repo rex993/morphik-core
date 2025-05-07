@@ -81,7 +81,7 @@ provider = "postgres"\n\
 [embedding]\n\
 provider = "ollama"\n\
 model_name = "nomic-embed-text"\n\
-dimensions = 768\n\
+dimensions = 1536\n\
 similarity_metric = "cosine"\n\
 base_url = "http://localhost:11434"\n\
 \n\
