@@ -19,7 +19,7 @@ openai_gpt4o = { model_name = "gpt-4o" }
 openai_gpt4o_mini = { model_name = "gpt-4o-mini" }
 
 # Azure OpenAI model
-azure_gpt4o = { model_name = "azure/gpt-4.1", api_base = "${AZURE_API_BASE}", api_key = "${AZURE_API_KEY}", api_version = "2023-05-15", deployment_id = "gpt4.1" }
+azure_gpt4-1 = { model_name = "${AZURE_MODEL_NAME}", api_base = "${AZURE_API_BASE}", api_key = "${AZURE_API_KEY}", api_version = "2023-05-15", deployment_id = "${AZURE_DEPLOYMENT_ID}" }
 
 # Anthropic models
 claude_opus = { model_name = "claude-3-opus-20240229" }
@@ -48,10 +48,10 @@ ollama_embedding_docker_docker = { model_name = "ollama/nomic-embed-text", api_b
 #### Component configurations ####
 
 [agent]
-model = "ollama_llama" # Model for the agent logic
+model = "azure_gpt4-1" # Model for the agent logic
 
 [completion]
-model = "ollama_llama" #"openai_gpt4o"  # Reference to a key in registered_models
+model = "azure_gpt4-1" #"openai_gpt4o"  # Reference to a key in registered_models
 default_max_tokens = "1000"
 default_temperature = 0.5
 
@@ -107,7 +107,7 @@ storage_path = "./storage"
 provider = "pgvector"
 
 [rules]
-model = "ollama_llama"
+model = "azure_gpt4-1"
 batch_size = 4096
 
 [morphik]
@@ -123,7 +123,7 @@ host = "redis"  # use "redis" for docker
 port = 6379
 
 [graph]
-model = "azure_gpt4o"
+model = "azure_gpt4-1"
 enable_entity_resolution = true
 
 [telemetry]
