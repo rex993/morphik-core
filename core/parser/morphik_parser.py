@@ -82,6 +82,7 @@ class ContextualChunker(BaseChunker):
 
     def _situate_context(self, doc: str, chunk: str) -> str:
         import litellm
+        litellm.drop_params = True
 
         # Extract model name from config
         model_name = self.model_config.get("model_name")
