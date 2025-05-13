@@ -153,6 +153,7 @@ class EntityResolver:
         # Import these here to avoid circular imports
         import instructor
         import litellm
+        litellm.drop_params = True
 
         # Create the prompt for entity resolution
         prompt = self._create_entity_resolution_prompt(

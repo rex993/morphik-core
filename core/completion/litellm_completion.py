@@ -17,6 +17,7 @@ from core.models.completion import CompletionRequest, CompletionResponse
 from .base_completion import BaseCompletionModel
 
 logger = logging.getLogger(__name__)
+litellm.drop_params = True
 
 
 def get_system_message() -> Dict[str, str]:

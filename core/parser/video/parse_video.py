@@ -12,7 +12,7 @@ from core.config import get_settings
 from core.models.video import ParseVideoResult, TimeSeriesData
 
 logger = logging.getLogger(__name__)
-
+litellm.drop_params = True
 
 def debug_object(title, obj):
     logger.debug("\n".join(["-" * 100, title, "-" * 100, f"{obj}", "-" * 100]))
