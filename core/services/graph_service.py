@@ -827,6 +827,7 @@ class GraphService:
                 model_params[key] = value
         import instructor
         import litellm
+        litellm.drop_params = True
 
         # Use instructor with litellm to get structured responses
         client = instructor.from_litellm(litellm.acompletion, mode=instructor.Mode.JSON)

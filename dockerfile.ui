@@ -1,0 +1,31 @@
+FROM node:20-slim
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    bash \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY ee/ui-component/package*.json ./
+RUN npm install --legacy-peer-deps
+RUN npm install -g next@14.2.16 react@18.2.0 react-dom@18.2.0
+
+# Install specific missing dependencies
+RUN npm install --legacy-peer-deps react-markdown@10.1.0 react-syntax-highlighter@15.6.1 remark-gfm@4.0.1
+
+# Copy the rest of the application
+COPY ee/ui-component .
+
+# Set ownership to node user (which already exists in the base image)
+RUN chown -R node:node /app
+
+USER node
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

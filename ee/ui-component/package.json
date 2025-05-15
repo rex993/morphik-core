@@ -82,8 +82,8 @@
   },
   "devDependencies": {
     "@shadcn/ui": "^0.0.4",
-    "@types/node": "^20",
-    "@types/react": "^18.3.18",
+    "@types/node": "22.15.2",
+    "@types/react": "19.1.2",
     "@types/react-dom": "^18.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
     "eslint": "^8",
@@ -95,7 +95,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
     "tsup": "^8.4.0",
-    "typescript": "^5.8.3"
+    "typescript": "5.8.3"
   },
   "peerDependencies": {
     "class-variance-authority": "^0.7.1",

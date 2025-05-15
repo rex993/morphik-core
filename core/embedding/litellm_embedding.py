@@ -9,6 +9,7 @@ from core.models.chunk import Chunk
 
 logger = logging.getLogger(__name__)
 PGVECTOR_MAX_DIMENSIONS = 2000  # Maximum dimensions for pgvector
+litellm.drop_params = True
 
 
 class LiteLLMEmbeddingModel(BaseEmbeddingModel):
