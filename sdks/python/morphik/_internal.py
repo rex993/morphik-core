@@ -172,8 +172,14 @@ class _MorphikClientLogic:
         rules: Optional[List[RuleOrDict]],
         folder_name: Optional[str],
         end_user_id: Optional[str],
+        use_colpali: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Prepare form data for ingest_file endpoint"""
+        """Prepare form data for ingest_file endpoint.
+
+        All parameters are included in the multipart body so that the server
+        never relies on query-string values.  *use_colpali* is therefore always
+        embedded here when provided.
+        """
         form_data = {
             "metadata": json.dumps(metadata or {}),
             "rules": json.dumps([self._convert_rule(r) for r in (rules or [])]),
@@ -182,6 +188,12 @@ class _MorphikClientLogic:
             form_data["folder_name"] = folder_name
         if end_user_id:
             form_data["end_user_id"] = end_user_id
+
+        # Only include the flag when caller supplied a specific value to avoid
+        # overriding server defaults unintentionally.
+        if use_colpali is not None:
+            form_data["use_colpali"] = str(use_colpali).lower()
+
         return form_data
 
     def _prepare_ingest_files_form_data(
@@ -208,9 +220,14 @@ class _MorphikClientLogic:
         data = {
             "metadata": json.dumps(metadata or {}),
             "rules": json.dumps(converted_rules),
-            # use_colpali is a query parameter, not a form field
             "parallel": str(parallel).lower(),
         }
+
+        # Always carry use_colpali in the body for consistency with single-file
+        # ingestion.  The API treats missing values as "true" for backward
+        # compatibility, hence we only add it when explicitly provided.
+        if use_colpali is not None:
+            data["use_colpali"] = str(use_colpali).lower()
 
         if folder_name:
             data["folder_name"] = folder_name
@@ -357,6 +374,7 @@ class _MorphikClientLogic:
         sources: List[Union[ChunkSource, Dict[str, Any]]],
         folder_name: Optional[Union[str, List[str]]],
         end_user_id: Optional[str],
+        use_colpali: bool = True,
     ) -> Dict[str, Any]:
         """Prepare request for batch_get_chunks endpoint"""
         source_dicts = []
@@ -366,15 +384,14 @@ class _MorphikClientLogic:
             else:
                 source_dicts.append(source.model_dump())
 
-        if folder_name or end_user_id:
-            request = {"sources": source_dicts}
-            if folder_name:
-                request["folder_name"] = folder_name
-            if end_user_id:
-                request["end_user_id"] = end_user_id
-            return request
-        # Return the dictionary structure { "sources": [...] } consistently.
-        return {"sources": source_dicts}
+        # Always include use_colpali flag so the server can decide how to
+        # enrich chunks.  Keep any additional scoping parameters.
+        request: Dict[str, Any] = {"sources": source_dicts, "use_colpali": use_colpali}
+        if folder_name:
+            request["folder_name"] = folder_name
+        if end_user_id:
+            request["end_user_id"] = end_user_id
+        return request
 
     def _prepare_create_graph_request(
         self,

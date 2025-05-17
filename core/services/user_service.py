@@ -18,10 +18,23 @@ class UserService:
         """Initialize the UserService."""
         self.settings = get_settings()
         self.db = UserLimitsDatabase(uri=self.settings.POSTGRES_URI)
+        self._db_initialized = False  # Flag to track if self.db has been initialized
 
     async def initialize(self) -> bool:
-        """Initialize database tables."""
-        return await self.db.initialize()
+        """Initialize database tables for the user limits system if not already done."""
+        if self._db_initialized:
+            return True  # Already initialized for this UserService instance
+
+        # Attempt to initialize the database component (UserLimitsDatabase)
+        # UserLimitsDatabase.initialize() has its own internal _initialized flag
+        # to prevent its DDL from running multiple times for the same instance.
+        if await self.db.initialize():
+            self._db_initialized = True  # Mark as initialized for this UserService instance
+            logger.info("UserService: Database component initialized successfully.")
+            return True
+
+        logger.error("UserService: Failed to initialize database component.")
+        return False
 
     async def get_user_limits(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user limits information."""
@@ -54,6 +67,16 @@ class UserService:
 
         # Now register the app
         return await self.db.register_app(user_id, app_id)
+
+    async def unregister_app(self, user_id: str, app_id: str) -> bool:
+        """Remove *app_id* from the user's registered applications list."""
+        # If the user record does not yet exist, nothing to do.
+        user_limits = await self.db.get_user_limits(user_id)
+        if not user_limits:
+            logger.info("User %s not found while unregistering app – treating as no-op", user_id)
+            return True
+
+        return await self.db.unregister_app(user_id, app_id)
 
     async def check_limit(self, user_id: str, limit_type: str, value: int = 1) -> bool:
         """
@@ -263,11 +286,39 @@ class UserService:
                     logger.info(f"User {user_id} has reached app limit ({app_limit}) for free tier")
                     return None
 
-        # Register the app
-        success = await self.register_app(user_id, app_id)
-        if not success:
-            logger.info(f"Failed to register app {app_id} for user {user_id}")
-            return None
+        # ------------------------------------------------------------------
+        # Persist lightweight *apps* record + enforce name uniqueness -------
+        # ------------------------------------------------------------------
+        from core.models.apps import AppModel  # Local import to avoid cycles
+        from sqlalchemy import select, insert, text
+        import uuid as _uuid
+
+        async with self.db.async_session() as session:
+            # Ensure uniqueness of app name per user
+            stmt = select(AppModel).where(AppModel.user_id == user_id, AppModel.name == name)
+            exists_res = await session.execute(stmt)
+            existing_app = exists_res.scalar_one_or_none()
+            if existing_app:
+                logger.info("App with name '%s' already exists for user %s", name, user_id)
+                return None
+
+            # Upfront register app_id in user limits
+            success = await self.register_app(user_id, app_id)
+            if not success:
+                logger.info("Failed to register app %s for user %s", app_id, user_id)
+                return None
+
+            # Insert into apps table
+            uri_placeholder = ""  # Will be filled after token generation
+            await session.execute(
+                insert(AppModel).values(
+                    app_id=app_id,
+                    user_id=_uuid.UUID(user_id),
+                    name=name,
+                    uri=uri_placeholder,
+                )
+            )
+            await session.commit()
 
         # Create token payload
         payload = {
@@ -286,5 +337,15 @@ class UserService:
         # Generate URI with API domain
         api_domain = getattr(self.settings, "API_DOMAIN", "api.morphik.ai")
         uri = f"morphik://{name}:{token}@{api_domain}"
+
+        # Update the previously inserted apps row with the real URI
+        async with self.db.async_session() as session:
+            await session.execute(
+                text(
+                    "UPDATE apps SET uri = :uri WHERE app_id = :app_id"
+                ),
+                {"uri": uri, "app_id": app_id},
+            )
+            await session.commit()
 
         return uri

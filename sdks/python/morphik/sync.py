@@ -163,15 +163,16 @@ class Folder:
             files = {"file": (filename, file_obj)}
 
             # Create form data
-            form_data = self._client._logic._prepare_ingest_file_form_data(metadata, rules, self._name, None)
+            form_data = self._client._logic._prepare_ingest_file_form_data(
+                metadata, rules, self._name, None, use_colpali
+            )
 
-            # use_colpali should be a query parameter as defined in the API
+            # use_colpali flag is included in multipart form data for consistency
             response = self._client._request(
                 "POST",
                 "ingest/file",
                 data=form_data,
                 files=files,
-                params={"use_colpali": str(use_colpali).lower()},
             )
             doc = self._client._logic._parse_document_response(response)
             doc._client = self._client
@@ -216,7 +217,6 @@ class Folder:
                 "ingest/files",
                 data=data,
                 files=file_objects,
-                params={"use_colpali": str(use_colpali).lower()},
             )
 
             if response.get("errors"):
@@ -474,27 +474,21 @@ class Folder:
         self,
         sources: List[Union[ChunkSource, Dict[str, Any]]],
         additional_folders: Optional[List[str]] = None,
+        use_colpali: bool = True,
     ) -> List[FinalChunkResult]:
         """
-        Retrieve specific chunks by their document ID and chunk number in a single batch operation within this folder.
+        Retrieve specific chunks by their document ID and chunk number in this folder.
 
         Args:
             sources: List of ChunkSource objects or dictionaries with document_id and chunk_number
             additional_folders: Optional list of extra folders to include in the scope
+            use_colpali: Whether to request multimodal chunks when available
 
         Returns:
             List[FinalChunkResult]: List of chunk results
         """
-        # Convert to list of dictionaries if needed
-        source_dicts = []
-        for source in sources:
-            if isinstance(source, dict):
-                source_dicts.append(source)
-            else:
-                source_dicts.append(source.model_dump())
-
         merged = self._merge_folders(additional_folders)
-        request = {"sources": source_dicts, "folder_name": merged}
+        request = self._client._logic._prepare_batch_get_chunks_request(sources, merged, None, use_colpali)
 
         response = self._client._request("POST", "batch/chunks", data=request)
         return self._client._logic._parse_chunk_result_list_response(response)
@@ -707,24 +701,22 @@ class UserScope:
             # Prepare multipart form data
             files = {"file": (filename, file_obj)}
 
-            # Add metadata and rules
+            # Add metadata, rules and scoping information
             form_data = {
                 "metadata": json.dumps(metadata or {}),
                 "rules": json.dumps([self._client._convert_rule(r) for r in (rules or [])]),
-                "end_user_id": self._end_user_id,  # Add end user ID here
+                "end_user_id": self._end_user_id,
+                "use_colpali": str(use_colpali).lower(),
             }
 
-            # Add folder name if scoped to a folder
             if self._folder_name:
                 form_data["folder_name"] = self._folder_name
 
-            # use_colpali should be a query parameter as defined in the API
             response = self._client._request(
                 "POST",
                 "ingest/file",
                 data=form_data,
                 files=files,
-                params={"use_colpali": str(use_colpali).lower()},
             )
             doc = self._client._logic._parse_document_response(response)
             doc._client = self._client
@@ -782,9 +774,9 @@ class UserScope:
             data = {
                 "metadata": json.dumps(metadata or {}),
                 "rules": json.dumps(converted_rules),
-                # Remove use_colpali from form data - it should be a query param
                 "parallel": str(parallel).lower(),
                 "end_user_id": self._end_user_id,  # Add end user ID here
+                "use_colpali": str(use_colpali).lower(),
             }
 
             # Add folder name if scoped to a folder
@@ -796,7 +788,6 @@ class UserScope:
                 "ingest/files",
                 data=data,
                 files=file_objects,
-                params={"use_colpali": str(use_colpali).lower()},
             )
 
             if response.get("errors"):
@@ -1078,30 +1069,21 @@ class UserScope:
         self,
         sources: List[Union[ChunkSource, Dict[str, Any]]],
         additional_folders: Optional[List[str]] = None,
+        use_colpali: bool = True,
     ) -> List[FinalChunkResult]:
         """
-        Retrieve specific chunks by their document ID and chunk number in a single batch operation for this end user.
+        Retrieve specific chunks by their document ID and chunk number in this folder.
 
         Args:
             sources: List of ChunkSource objects or dictionaries with document_id and chunk_number
             additional_folders: Optional list of extra folders to include in the scope
+            use_colpali: Whether to request multimodal chunks when available
 
         Returns:
             List[FinalChunkResult]: List of chunk results
         """
-        # Convert to list of dictionaries if needed
-        source_dicts = []
-        for source in sources:
-            if isinstance(source, dict):
-                source_dicts.append(source)
-            else:
-                source_dicts.append(source.model_dump())
-
         merged = self._merge_folders(additional_folders)
-        request = {"sources": source_dicts, "end_user_id": self._end_user_id}
-
-        if merged:
-            request["folder_name"] = merged
+        request = self._client._logic._prepare_batch_get_chunks_request(sources, merged, None, use_colpali)
 
         response = self._client._request("POST", "batch/chunks", data=request)
         return self._client._logic._parse_chunk_result_list_response(response)
@@ -1504,7 +1486,7 @@ class Morphik:
             files = {"file": (filename, file_obj)}
 
             # Create form data
-            form_data = self._logic._prepare_ingest_file_form_data(metadata, rules, None, None)
+            form_data = self._logic._prepare_ingest_file_form_data(metadata, rules, None, None, use_colpali)
 
             # use_colpali should be a query parameter as defined in the API
             response = self._request(
@@ -1512,7 +1494,6 @@ class Morphik:
                 "ingest/file",
                 data=form_data,
                 files=files,
-                params={"use_colpali": str(use_colpali).lower()},
             )
             doc = self._logic._parse_document_response(response)
             doc._client = self
@@ -1559,7 +1540,6 @@ class Morphik:
                 "ingest/files",
                 data=data,
                 files=file_objects,
-                params={"use_colpali": str(use_colpali).lower()},
             )
 
             if response.get("errors"):
@@ -2344,7 +2324,10 @@ class Morphik:
         return docs
 
     def batch_get_chunks(
-        self, sources: List[Union[ChunkSource, Dict[str, Any]]], folder_name: Optional[Union[str, List[str]]] = None
+        self,
+        sources: List[Union[ChunkSource, Dict[str, Any]]],
+        folder_name: Optional[Union[str, List[str]]] = None,
+        use_colpali: bool = True,
     ) -> List[FinalChunkResult]:
         """
         Retrieve specific chunks by their document ID and chunk number.
@@ -2376,7 +2359,7 @@ class Morphik:
                 print(f"Chunk from {chunk.document_id}, number {chunk.chunk_number}: {chunk.content[:50]}...")
             ```
         """
-        request = self._logic._prepare_batch_get_chunks_request(sources, folder_name, None)
+        request = self._logic._prepare_batch_get_chunks_request(sources, folder_name, None, use_colpali)
         response = self._request("POST", "batch/chunks", data=request)
         return self._logic._parse_chunk_result_list_response(response)
 
