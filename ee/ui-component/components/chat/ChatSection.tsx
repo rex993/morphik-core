@@ -471,7 +471,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
                       <Slider
                         id="query-max-tokens"
                         min={1}
-                        max={10240}
+                        max={50000}
                         step={1}
                         value={[safeQueryOptions.max_tokens]}
                         onValueChange={value => safeUpdateOption("max_tokens", value[0])}
