@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { UIMessage } from "@/components/chat/ChatMessages";
 import { showAlert } from "@/components/ui/alert-system";
 import { generateUUID } from "@/lib/utils";
@@ -27,7 +27,7 @@ interface UseMorphikChatReturn {
   handleSubmit: (e?: React.FormEvent<HTMLFormElement>) => void;
   attachments?: Attachment[];
   setAttachments?: React.Dispatch<React.SetStateAction<Attachment[]>>;
-  updateQueryOption?: (key: keyof QueryOptions, value: string | number | boolean | undefined) => void;
+  updateQueryOption?: (key: keyof QueryOptions, value: QueryOptions[keyof QueryOptions]) => void;
   status?: string;
 }
 
@@ -54,21 +54,48 @@ export function useMorphikChat({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
+  // Load existing chat history from server on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/chat/${chatId}`, {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setMessages(
+            data.map((m: any) => ({
+              id: generateUUID(),
+              role: m.role,
+              content: m.content,
+              createdAt: new Date(m.timestamp),
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+      }
+    };
+    fetchHistory();
+  }, [chatId, apiBaseUrl, authToken]);
+
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({
     filters: initialQueryOptions.filters ?? "{}",
-    k: initialQueryOptions.k ?? 10,
+    k: initialQueryOptions.k ?? 5,
     min_score: initialQueryOptions.min_score ?? 0.7,
     use_reranking: initialQueryOptions.use_reranking ?? false,
     use_colpali: initialQueryOptions.use_colpali ?? true,
     max_tokens: initialQueryOptions.max_tokens ?? 1024,
-    temperature: initialQueryOptions.temperature ?? 0.7,
+    temperature: initialQueryOptions.temperature ?? 0.5,
     graph_name: initialQueryOptions.graph_name,
     folder_name: initialQueryOptions.folder_name,
   });
 
   const status = isLoading ? "loading" : "idle";
 
-  const updateQueryOption = useCallback((key: keyof QueryOptions, value: string | number | boolean | undefined) => {
+  const updateQueryOption = useCallback((key: keyof QueryOptions, value: QueryOptions[keyof QueryOptions]) => {
     setQueryOptions(prev => ({ ...prev, [key]: value }));
   }, []);
 
@@ -86,8 +113,12 @@ export function useMorphikChat({
         filters: queryOptions.filters || "{}",
       };
 
-      const messagesBeforeUpdate = [...messages];
-      setMessages(prev => [...prev, newUserMessage]);
+      // Capture previous messages inside functional update to avoid stale refs
+      let messagesBeforeUpdate: UIMessage[] = [];
+      setMessages(prev => {
+        messagesBeforeUpdate = [...prev];
+        return [...prev, newUserMessage];
+      });
       setIsLoading(true);
 
       onChatSubmit?.(newUserMessage.content, currentQueryOptions, messagesBeforeUpdate);
@@ -116,6 +147,7 @@ export function useMorphikChat({
           query: newUserMessage.content,
           ...currentQueryOptions,
           filters: parsedFilters ?? {},
+          chat_id: chatId,
         } as Record<string, unknown>;
 
         const response = await fetch(`${apiBaseUrl}/query`, {
@@ -203,7 +235,7 @@ export function useMorphikChat({
         setIsLoading(false);
       }
     },
-    [apiBaseUrl, authToken, chatId, messages, queryOptions, onChatSubmit]
+    [apiBaseUrl, authToken, chatId, queryOptions, onChatSubmit]
   );
 
   const handleSubmit = useCallback(

@@ -3,9 +3,10 @@ import json
 import logging
 import os
 import sys
+import uuid  # , override
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict  # , override
+from typing import Any, AsyncGenerator, Dict
 
 import filetype
 import jwt
@@ -183,6 +184,11 @@ async def cleanup_documents():
                 await conn.execute(text("DELETE FROM vector_embeddings"))
             except Exception as e:
                 logger.info(f"No chunks table to clean or error: {e}")
+
+            try:
+                await conn.execute(text("DELETE FROM chat_conversations"))
+            except Exception:
+                logger.info("No chat_conversations table to clean")
 
     except Exception as e:
         logger.error(f"Failed to clean up document tables: {e}")
@@ -3629,6 +3635,109 @@ async def test_multi_folder_list_scoping(client: AsyncClient):
     assert all(src["document_id"] in {doc1_id, doc2_id} for src in result["sources"])
 
 
+@pytest.mark.asyncio
+async def test_documents_not_in_folder(client: AsyncClient):
+    """Test retrieving documents that are not in any folder (folder_name is null)."""
+    headers = create_auth_header()
+
+    # Ingest a document without a folder
+    no_folder_content = "This document is not in any folder"
+    doc_no_folder_id = await test_ingest_text_document(client, content=no_folder_content)
+
+    # Ingest a document with a folder
+    folder_name = "test_folder_for_null_check"
+    folder_content = "This document is in a folder"
+    doc_with_folder_id = await test_ingest_text_document_folder_user(
+        client,
+        content=folder_content,
+        metadata={"test": "value"},
+        folder_name=folder_name,
+        end_user_id=None,
+    )
+
+    # Wait a bit for ingestion to complete
+    await asyncio.sleep(2)
+
+    # Test listing documents not in any folder (folder_name=null)
+    response = await client.post("/documents", json={}, headers=headers, params={"folder_name": "null"})
+    assert response.status_code == 200
+    docs = response.json()
+
+    # Check that we get exactly our documents with null folder_name
+    found_doc_ids = {doc["external_id"] for doc in docs}
+
+    # The document without folder should be in the results
+    assert doc_no_folder_id in found_doc_ids, "Document without folder should be found when filtering by null folder"
+
+    # The document with folder should NOT be in the results
+    assert (
+        doc_with_folder_id not in found_doc_ids
+    ), "Document with folder should NOT be found when filtering by null folder"
+
+    # Verify the returned document has null folder_name
+    for doc in docs:
+        if doc["external_id"] == doc_no_folder_id:
+            assert doc["system_metadata"]["folder_name"] is None
+
+
+@pytest.mark.asyncio
+async def test_documents_in_folder_or_no_folder(client: AsyncClient):
+    """Test retrieving documents either in a specific folder OR not in any folder."""
+    headers = create_auth_header()
+
+    # Ingest a document without a folder
+    no_folder_content = "Document with no folder"
+    doc_no_folder_id = await test_ingest_text_document(client, content=no_folder_content)
+
+    # Ingest a document in folder A
+    folder_a_name = "folder_a_for_mixed_test"
+    folder_a_content = "Document in folder A"
+    doc_folder_a_id = await test_ingest_text_document_folder_user(
+        client,
+        content=folder_a_content,
+        metadata={"test": "folder_a"},
+        folder_name=folder_a_name,
+        end_user_id=None,
+    )
+
+    # Ingest a document in folder B
+    folder_b_name = "folder_b_for_mixed_test"
+    folder_b_content = "Document in folder B"
+    doc_folder_b_id = await test_ingest_text_document_folder_user(
+        client,
+        content=folder_b_content,
+        metadata={"test": "folder_b"},
+        folder_name=folder_b_name,
+        end_user_id=None,
+    )
+
+    # Wait a bit for ingestion to complete
+    await asyncio.sleep(2)
+
+    # Test listing documents in folder A OR not in any folder
+    response = await client.post(
+        "/documents", json={}, headers=headers, params={"folder_name": [folder_a_name, "null"]}
+    )
+    assert response.status_code == 200
+    docs = response.json()
+
+    # Track which documents we found
+    found_doc_ids = {doc["external_id"] for doc in docs}
+
+    # Should find: doc_no_folder_id and doc_folder_a_id
+    # Should NOT find: doc_folder_b_id
+    assert doc_no_folder_id in found_doc_ids, "Document without folder should be found"
+    assert doc_folder_a_id in found_doc_ids, "Document in folder A should be found"
+    assert doc_folder_b_id not in found_doc_ids, "Document in folder B should NOT be found"
+
+    # Verify the folder_name values
+    for doc in docs:
+        if doc["external_id"] == doc_no_folder_id:
+            assert doc["system_metadata"]["folder_name"] is None
+        elif doc["external_id"] == doc_folder_a_id:
+            assert doc["system_metadata"]["folder_name"] == folder_a_name
+
+
 # ---------------------------------------------------------------------------
 # Utility – wait for background graph builds to complete
 # ---------------------------------------------------------------------------
@@ -3657,3 +3766,105 @@ async def _wait_graph_completion(
                 return g
         await asyncio.sleep(1)
     raise AssertionError(f"Graph {graph_name} did not complete within timeout")
+
+
+# ---------------------------------------------------------------------------
+# New tests – regression for PDF-named text & failed status propagation
+# ---------------------------------------------------------------------------
+
+
+async def _wait_doc_status(
+    client: AsyncClient, doc_id: str, headers: Dict[str, str], *, target: str, timeout: int = 30
+):
+    """Poll /documents/{id}/status until status matches *target* or timeout."""
+    import asyncio
+    import time
+
+    start = time.time()
+    while time.time() - start < timeout:
+        resp = await client.get(f"/documents/{doc_id}/status", headers=headers)
+        if resp.status_code == 200:
+            status = resp.json().get("status")
+            if status == target:
+                return resp.json()
+        await asyncio.sleep(1)
+    raise AssertionError(f"Document {doc_id} did not reach status={target} within {timeout}s")
+
+
+@pytest.mark.asyncio
+async def test_ingest_text_named_pdf_success(client: AsyncClient):
+    """Plain-text bytes with a .pdf name should still ingest successfully."""
+
+    headers = create_auth_header()
+
+    fake_pdf_bytes = b"This is actually plain text, not a PDF."
+
+    response = await client.post(
+        "/ingest/file",
+        files={"file": ("fake.pdf", fake_pdf_bytes, "text/plain")},
+        data={"metadata": json.dumps({"regression": "pdf_named_text"})},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    doc = response.json()
+
+    # Wait until worker completes (should be 'completed')
+    status_info = await _wait_doc_status(client, doc["external_id"], headers, target="completed")
+
+    assert status_info["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_ingest_empty_file_sets_failed_status(client: AsyncClient):
+    """Uploading an empty file should fail and status should become 'failed'."""
+
+    headers = create_auth_header()
+
+    empty_bytes = b""  # zero-length
+
+    response = await client.post(
+        "/ingest/file",
+        files={"file": ("empty.txt", empty_bytes, "text/plain")},
+        data={"metadata": json.dumps({"regression": "empty_file"})},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    doc = response.json()
+
+    # Wait for the worker to mark as failed
+    status_info = await _wait_doc_status(client, doc["external_id"], headers, target="failed")
+
+    assert status_info["status"] == "failed"
+    assert "error" in status_info and "No content chunks" in status_info["error"]
+
+
+@pytest.mark.asyncio
+async def test_chat_persistence(client: AsyncClient):
+    """Ensure chat history is persisted across queries."""
+    headers = create_auth_header()
+    chat_id = str(uuid.uuid4())
+
+    await test_ingest_text_document(client, content="Chat persistence doc")
+
+    resp1 = await client.post(
+        "/query",
+        json={"query": "first", "chat_id": chat_id},
+        headers=headers,
+    )
+    assert resp1.status_code == 200
+
+    resp2 = await client.post(
+        "/query",
+        json={"query": "second", "chat_id": chat_id},
+        headers=headers,
+    )
+    assert resp2.status_code == 200
+
+    hist = await client.get(f"/chat/{chat_id}", headers=headers)
+    assert hist.status_code == 200
+    history = hist.json()
+    assert len(history) >= 4
+    assert history[0]["role"] == "user"
+    assert history[1]["role"] == "assistant"

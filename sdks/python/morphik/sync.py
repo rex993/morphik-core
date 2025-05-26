@@ -367,6 +367,7 @@ class Folder:
         prompt_overrides: Optional[Union[QueryPromptOverrides, Dict[str, Any]]] = None,
         additional_folders: Optional[List[str]] = None,
         schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
+        chat_id: Optional[str] = None,
     ) -> CompletionResponse:
         """
         Generate completion using relevant chunks as context within this folder.
@@ -404,6 +405,7 @@ class Folder:
             prompt_overrides,
             effective_folder,
             None,  # end_user_id not supported at this level
+            chat_id,
             schema,
         )
 
@@ -948,6 +950,7 @@ class UserScope:
         prompt_overrides: Optional[Union[QueryPromptOverrides, Dict[str, Any]]] = None,
         additional_folders: Optional[List[str]] = None,
         schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
+        chat_id: Optional[str] = None,
     ) -> CompletionResponse:
         """
         Generate completion using relevant chunks as context as this end user.
@@ -985,6 +988,7 @@ class UserScope:
             prompt_overrides,
             effective_folder,
             self._end_user_id,
+            chat_id,
             schema,
         )
 
@@ -1692,6 +1696,7 @@ class Morphik:
         include_paths: bool = False,
         prompt_overrides: Optional[Union[QueryPromptOverrides, Dict[str, Any]]] = None,
         folder_name: Optional[Union[str, List[str]]] = None,
+        chat_id: Optional[str] = None,
         schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
     ) -> CompletionResponse:
         """
@@ -1798,6 +1803,7 @@ class Morphik:
             prompt_overrides,
             folder_name,
             None,  # end_user_id not supported at this level
+            chat_id,
             schema,
         )
 
@@ -1814,6 +1820,45 @@ class Morphik:
 
         response = self._request("POST", "query", data=payload)
         return self._logic._parse_completion_response(response)
+
+    def agent_query(self, query: str) -> Dict[str, Any]:
+        """
+        Execute an agentic query with tool access and conversation handling.
+
+        The agent can autonomously use various tools to answer complex queries including:
+        - Searching and retrieving relevant documents
+        - Analyzing document content 
+        - Performing calculations and data processing
+        - Creating summaries and reports
+        - Managing knowledge graphs
+
+        Args:
+            query: Natural language query for the Morphik agent
+
+        Returns:
+            Dict[str, Any]: Agent response with potential tool execution results and sources
+
+        Example:
+            ```python
+            # Simple query
+            result = db.agent_query("What are the main trends in our Q3 sales data?")
+            print(result["response"])
+
+            # Complex analysis request
+            result = db.agent_query(
+                "Analyze all documents from the marketing department, "
+                "identify key performance metrics, and create a summary "
+                "with actionable insights"
+            )
+            print(result["response"])
+
+            # Tool usage is automatic - the agent will decide which tools to use
+            # based on the query requirements
+            ```
+        """
+        request = {"query": query}
+        response = self._request("POST", "agent", data=request)
+        return response
 
     def list_documents(
         self,

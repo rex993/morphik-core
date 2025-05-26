@@ -104,6 +104,25 @@ class FolderModel(Base):
     )
 
 
+class ChatConversationModel(Base):
+    """SQLAlchemy model for persisted chat history."""
+
+    __tablename__ = "chat_conversations"
+
+    conversation_id = Column(String, primary_key=True)
+    user_id = Column(String, index=True, nullable=True)
+    app_id = Column(String, index=True, nullable=True)
+    history = Column(JSONB, default=list)
+    created_at = Column(String)
+    updated_at = Column(String)
+
+    __table_args__ = (
+        Index("idx_chat_user_id", "user_id"),
+        Index("idx_chat_app_id", "app_id"),
+        Index("idx_chat_conversation_id", "conversation_id"),
+    )
+
+
 def _serialize_datetime(obj: Any) -> Any:
     """Helper function to serialize datetime objects to ISO format strings."""
     if isinstance(obj, datetime):
@@ -698,6 +717,28 @@ class PostgresDatabase(BaseDatabase):
                 if doc_model:
                     await session.delete(doc_model)
                     await session.commit()
+
+                    # --------------------------------------------------------------------------------
+                    # Maintain referential integrity: remove the deleted document ID from any folders
+                    # that still list it in their document_ids JSONB array.  This prevents the UI from
+                    # requesting stale IDs after a delete.
+                    # --------------------------------------------------------------------------------
+                    try:
+                        await session.execute(
+                            text(
+                                """
+                                UPDATE folders
+                                SET document_ids = document_ids - :doc_id
+                                WHERE document_ids ? :doc_id
+                                """
+                            ),
+                            {"doc_id": document_id},
+                        )
+                        await session.commit()
+                    except Exception as upd_err:  # noqa: BLE001
+                        # Non-fatal – log but keep the document deleted so user doesn't see it any more.
+                        logger.error("Failed to remove deleted document %s from folders: %s", document_id, upd_err)
+
                     return True
                 return False
 
@@ -789,7 +830,7 @@ class PostgresDatabase(BaseDatabase):
 
         # Base clauses that will always be AND-ed with any additional application scoping.
         base_clauses = [
-            f"owner @> '{{\"id\": \"{auth.entity_id}\"}}'::jsonb",  # Check owner using @>
+            f'owner @> \'{{"id": "{auth.entity_id}"}}\'::jsonb',  # Check owner using @>
             f"access_control->'readers' ? '{auth.entity_id}'",
             f"access_control->'writers' ? '{auth.entity_id}'",
             f"access_control->'admins' ? '{auth.entity_id}'",
@@ -797,7 +838,7 @@ class PostgresDatabase(BaseDatabase):
 
         # Developer token with app_id → restrict strictly by that app_id.
         if auth.entity_type == EntityType.DEVELOPER and auth.app_id:
-            filters = [f"system_metadata @> '{{\"app_id\": \"{auth.app_id}\"}}'::jsonb"]  # Check app_id using @>
+            filters = [f'system_metadata @> \'{{"app_id": "{auth.app_id}"}}\'::jsonb']  # Check app_id using @>
         else:
             filters = base_clauses.copy()
 
@@ -862,26 +903,30 @@ class PostgresDatabase(BaseDatabase):
         key_clauses: List[str] = []
 
         for key, value in system_filters.items():
-            if value is None:
-                continue
-
             # Normalise to a list for uniform processing.
             values = value if isinstance(value, list) else [value]
-            if not values:
+            if not values and value is not None:
                 continue
 
             value_clauses = []
             for item in values:
-                # New approach: Use JSONB containment operator @>
-                # This allows matching native JSON types (boolean, number, string)
-                # and leverages the GIN index on the system_metadata column.
-                json_filter_object = {key: item}
-                # json.dumps will correctly format item as a JSON string, number, or boolean
-                json_string_for_sql = json.dumps(json_filter_object)
-                # Escape single quotes within the generated JSON string for SQL literal
-                sql_escaped_json_string = json_string_for_sql.replace("'", "''")
-                
-                value_clauses.append(f"system_metadata @> '{sql_escaped_json_string}'::jsonb")
+                if item is None:
+                    # Special handling for None values - check for null in JSON
+                    json_filter_object = {key: None}
+                    json_string_for_sql = json.dumps(json_filter_object)
+                    sql_escaped_json_string = json_string_for_sql.replace("'", "''")
+                    value_clauses.append(f"system_metadata @> '{sql_escaped_json_string}'::jsonb")
+                else:
+                    # Use JSONB containment operator @>
+                    # This allows matching native JSON types (boolean, number, string)
+                    # and leverages the GIN index on the system_metadata column.
+                    json_filter_object = {key: item}
+                    # json.dumps will correctly format item as a JSON string, number, or boolean
+                    json_string_for_sql = json.dumps(json_filter_object)
+                    # Escape single quotes within the generated JSON string for SQL literal
+                    sql_escaped_json_string = json_string_for_sql.replace("'", "''")
+
+                    value_clauses.append(f"system_metadata @> '{sql_escaped_json_string}'::jsonb")
 
             # OR all alternative values for this key, wrap in parentheses.
             key_clauses.append("(" + " OR ".join(value_clauses) + ")")
@@ -1582,6 +1627,121 @@ class PostgresDatabase(BaseDatabase):
         except Exception as e:
             logger.error(f"Error removing document from folder: {e}")
             return False
+
+    async def get_chat_history(
+        self, conversation_id: str, user_id: Optional[str], app_id: Optional[str]
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Return stored chat history for *conversation_id*."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            async with self.async_session() as session:
+                result = await session.execute(
+                    select(ChatConversationModel).where(ChatConversationModel.conversation_id == conversation_id)
+                )
+                convo = result.scalar_one_or_none()
+                if not convo:
+                    return None
+                if user_id and convo.user_id and convo.user_id != user_id:
+                    return None
+                if app_id and convo.app_id and convo.app_id != app_id:
+                    return None
+                return convo.history
+        except Exception as e:
+            logger.error(f"Error getting chat history: {e}")
+            return None
+
+    async def upsert_chat_history(
+        self,
+        conversation_id: str,
+        user_id: Optional[str],
+        app_id: Optional[str],
+        history: List[Dict[str, Any]],
+    ) -> bool:
+        """Store or update chat history."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            now = datetime.now(UTC).isoformat()
+            async with self.async_session() as session:
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO chat_conversations (conversation_id, user_id, app_id, history, created_at, updated_at)
+                        VALUES (:cid, :uid, :aid, :hist, :now, :now)
+                        ON CONFLICT (conversation_id)
+                        DO UPDATE SET
+                            user_id = EXCLUDED.user_id,
+                            app_id = EXCLUDED.app_id,
+                            history = EXCLUDED.history,
+                            updated_at = :now
+                        """
+                    ),
+                    {
+                        "cid": conversation_id,
+                        "uid": user_id,
+                        "aid": app_id,
+                        "hist": json.dumps(history),
+                        "now": now,
+                    },
+                )
+                await session.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error upserting chat history: {e}")
+            return False
+
+    async def list_chat_conversations(
+        self,
+        user_id: Optional[str],
+        app_id: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Return chat conversations for a given user (and optional app) ordered by last update.
+
+        Args:
+            user_id: ID of the user that owns the conversation (required for cloud-mode privacy).
+            app_id: Optional application scope for developer tokens.
+            limit: Maximum number of conversations to return.
+
+        Returns:
+            A list of dictionaries containing conversation_id, updated_at and a preview of the
+            last message (if available).
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            async with self.async_session() as session:
+                stmt = select(ChatConversationModel).order_by(ChatConversationModel.updated_at.desc())
+
+                if user_id is not None:
+                    stmt = stmt.where(ChatConversationModel.user_id == user_id)
+                # When an app_id scope is specified (developer tokens) we must restrict results
+                if app_id is not None:
+                    stmt = stmt.where(ChatConversationModel.app_id == app_id)
+
+                stmt = stmt.limit(limit)
+                res = await session.execute(stmt)
+                convos = res.scalars().all()
+
+                conversations: List[Dict[str, Any]] = []
+                for convo in convos:
+                    last_message = convo.history[-1] if convo.history else None
+                    conversations.append(
+                        {
+                            "chat_id": convo.conversation_id,
+                            "updated_at": convo.updated_at,
+                            "created_at": convo.created_at,
+                            "last_message": last_message,
+                        }
+                    )
+                return conversations
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error listing chat conversations: %s", exc)
+            return []
 
     def _check_folder_access(self, folder: Folder, auth: AuthContext, permission: str = "read") -> bool:
         """Check if the user has the required permission for the folder."""
