@@ -1,5 +1,7 @@
 version: '3.8'
 
+# ColPali Embedding API Service
+# Uses uv and pyproject.toml for fast dependency management
 services:
   colpali-embedding-api:
     build:
@@ -7,12 +9,12 @@ services:
       dockerfile: Dockerfile
     container_name: colpali-embedding-api
     ports:
-      - "8000:8000"
+      - "8765:8765"
     environment:
       # API Configuration
       - COLPALI_API_KEY=${COLPALI_API_KEY:-your-secret-api-key}
       - COLPALI_HOST=0.0.0.0
-      - COLPALI_PORT=8000
+      - COLPALI_PORT=8765
       - COLPALI_LOG_LEVEL=${COLPALI_LOG_LEVEL:-INFO}
       
       # Model Configuration
@@ -40,7 +42,7 @@ services:
               count: 1
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -47,7 +47,7 @@ async def test_morphik_integration():
     
     # Set up environment for testing
     os.environ['MORPHIK_EMBEDDING_API_KEY'] = 'your-secret-api-key'
-    os.environ['MORPHIK_EMBEDDING_API_DOMAIN'] = 'http://localhost:8000'
+    os.environ['MORPHIK_EMBEDDING_API_DOMAIN'] = 'http://localhost:8765'
     
     try:
         # Initialize the API embedding model
@@ -192,10 +192,10 @@ async def main():
     import httpx
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:8000/health", timeout=5.0)
+            response = await client.get("http://localhost:8765/health", timeout=5.0)
             if response.status_code != 200:
                 print("❌ API service is not responding correctly")
-                print("Please make sure the service is running on localhost:8000")
+                print("Please make sure the service is running on localhost:8765")
                 return
             else:
                 health_data = response.json()
@@ -219,7 +219,7 @@ async def main():
             print("\nNext steps:")
             print("1. Update your Morphik configuration to use this API service")
             print("2. Set MORPHIK_EMBEDDING_API_KEY in your environment")
-            print("3. Set MORPHIK_EMBEDDING_API_DOMAIN=http://localhost:8000")
+            print("3. Set MORPHIK_EMBEDDING_API_DOMAIN=http://localhost:8765")
         else:
             print("\n❌ Performance tests failed")
     else:

@@ -43,7 +43,7 @@ DEVICE = os.getenv("COLPALI_DEVICE", "auto")  # auto, cuda, mps, cpu
 BATCH_SIZE_TEXT = int(os.getenv("COLPALI_BATCH_SIZE_TEXT", "8"))
 BATCH_SIZE_IMAGE = int(os.getenv("COLPALI_BATCH_SIZE_IMAGE", "4"))
 HOST = os.getenv("COLPALI_HOST", "0.0.0.0")
-PORT = int(os.getenv("COLPALI_PORT", "8000"))
+PORT = int(os.getenv("COLPALI_PORT", "8765"))
 LOG_LEVEL = os.getenv("COLPALI_LOG_LEVEL", "INFO")
 
 # Pydantic models
@@ -334,7 +334,8 @@ async def general_exception_handler(request: Request, exc: Exception):
         ).dict()
     )
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the ColPali Embedding API service."""
     # Configure logging level
     logging.getLogger().setLevel(getattr(logging, LOG_LEVEL.upper()))
     
@@ -350,3 +351,6 @@ if __name__ == "__main__":
         log_level=LOG_LEVEL.lower(),
         reload=False
     )
+
+if __name__ == "__main__":
+    main()

@@ -42,22 +42,28 @@ if [ "$(printf '%s\n' "$required_version" "$python_version" | sort -V | head -n1
     exit 1
 fi
 
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo -e "${YELLOW}Installing uv package manager...${NC}"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source $HOME/.cargo/env
+fi
+
 # Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
-    python3 -m venv venv
+if [ ! -d ".venv" ]; then
+    echo -e "${YELLOW}Creating virtual environment with uv...${NC}"
+    uv venv
 fi
 
 # Activate virtual environment
 echo -e "${GREEN}Activating virtual environment...${NC}"
-source venv/bin/activate
+source .venv/bin/activate
 
-# Check if requirements are installed
-if [ ! -f "venv/installed" ]; then
-    echo -e "${YELLOW}Installing dependencies...${NC}"
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    touch venv/installed
+# Check if dependencies are installed
+if [ ! -f ".venv/installed" ]; then
+    echo -e "${YELLOW}Installing dependencies with uv...${NC}"
+    uv pip install -e .
+    touch .venv/installed
     echo -e "${GREEN}Dependencies installed successfully${NC}"
 fi
 

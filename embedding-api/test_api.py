@@ -16,7 +16,7 @@ import httpx
 from PIL import Image, ImageDraw
 
 # Configuration
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://localhost:8765"
 API_KEY = "your-secret-api-key"
 
 async def test_health_check():

@@ -7,6 +7,7 @@ A lightweight, self-hostable API service for ColPali multi-vector embeddings. Th
 - **Fast ColPali Embeddings**: GPU-accelerated ColPali model inference
 - **Dual Input Support**: Process both text and images
 - **Batch Processing**: Efficient batching for better throughput
+- **Modern Python**: Uses `uv` for fast dependency management
 - **Docker Ready**: Easy deployment with GPU support
 - **Production Ready**: Authentication, logging, error handling, health checks
 - **Compatible**: Drop-in replacement for Modal deployment
@@ -29,7 +30,7 @@ A lightweight, self-hostable API service for ColPali multi-vector embeddings. Th
 
 3. **Test the service**:
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8765/health
    ```
 
 ### Option 2: Local Development
@@ -46,11 +47,16 @@ A lightweight, self-hostable API service for ColPali multi-vector embeddings. Th
    ./start_service.sh
    ```
 
-3. **Or manually**:
+3. **Or manually with uv**:
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+   # Install uv if not already installed
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   source $HOME/.cargo/env
+   
+   # Create virtual environment and install dependencies
+   uv venv
+   source .venv/bin/activate
+   uv pip install -e .
    python embedding_service.py
    ```
 
@@ -62,7 +68,7 @@ A lightweight, self-hostable API service for ColPali multi-vector embeddings. Th
 |----------|---------|-------------|
 | `COLPALI_API_KEY` | `your-secret-api-key` | API authentication key |
 | `COLPALI_HOST` | `0.0.0.0` | Server bind address |
-| `COLPALI_PORT` | `8000` | Server port |
+| `COLPALI_PORT` | `8765` | Server port |
 | `COLPALI_LOG_LEVEL` | `INFO` | Logging level |
 | `COLPALI_MODEL_NAME` | `tsystems/colqwen2.5-3b-multilingual-v1.0` | HuggingFace model name |
 | `COLPALI_DEVICE` | `auto` | Device selection (auto/cuda/mps/cpu) |
@@ -107,7 +113,7 @@ Update your Morphik configuration:
 1. **Set environment variables**:
    ```bash
    export MORPHIK_EMBEDDING_API_KEY="your-secret-api-key"
-   export MORPHIK_EMBEDDING_API_DOMAIN="http://localhost:8000"
+   export MORPHIK_EMBEDDING_API_DOMAIN="http://localhost:8765"
    ```
 
 2. **Update morphik.toml**:
@@ -115,7 +121,7 @@ Update your Morphik configuration:
    [morphik]
    enable_colpali = true
    colpali_mode = "api"
-   morphik_embedding_api_domain = "http://localhost:8000"
+   morphik_embedding_api_domain = "http://localhost:8765"
    ```
 
 3. **Test integration**:
@@ -147,7 +153,7 @@ docker push your-registry/colpali-embedding-api
 # Deploy on remote server
 docker run -d \
   --gpus all \
-  -p 8000:8000 \
+  -p 8765:8765 \
   -e COLPALI_API_KEY=your-secret-key \
   -v colpali_cache:/home/colpali/.cache/huggingface \
   your-registry/colpali-embedding-api
@@ -161,7 +167,34 @@ export COLPALI_API_KEY=your-secret-key
 ./start_service.sh
 
 # On client machines, use the server's IP
-export MORPHIK_EMBEDDING_API_DOMAIN="http://192.168.1.100:8000"
+export MORPHIK_EMBEDDING_API_DOMAIN="http://192.168.1.100:8765"
+```
+
+## Development
+
+### Using uv for Development
+
+This project uses `uv` for fast Python package management:
+
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create and activate virtual environment
+uv venv
+source .venv/bin/activate
+
+# Install in development mode with dev dependencies
+uv pip install -e ".[dev]"
+
+# Install with GPU support (Linux only)
+uv pip install -e ".[dev,gpu]"
+
+# Run linting and formatting
+black .
+isort .
+flake8 .
+mypy .
 ```
 
 ## Testing
@@ -201,7 +234,7 @@ The test script will verify:
 
 ### Health Check
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8765/health
 ```
 
 ### Logs
