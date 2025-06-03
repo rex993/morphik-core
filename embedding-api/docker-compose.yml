@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  colpali-embedding-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: colpali-embedding-api
+    ports:
+      - "8000:8000"
+    environment:
+      # API Configuration
+      - COLPALI_API_KEY=${COLPALI_API_KEY:-your-secret-api-key}
+      - COLPALI_HOST=0.0.0.0
+      - COLPALI_PORT=8000
+      - COLPALI_LOG_LEVEL=${COLPALI_LOG_LEVEL:-INFO}
+      
+      # Model Configuration
+      - COLPALI_MODEL_NAME=${COLPALI_MODEL_NAME:-tsystems/colqwen2.5-3b-multilingual-v1.0}
+      - COLPALI_DEVICE=${COLPALI_DEVICE:-auto}
+      - COLPALI_BATCH_SIZE_TEXT=${COLPALI_BATCH_SIZE_TEXT:-8}
+      - COLPALI_BATCH_SIZE_IMAGE=${COLPALI_BATCH_SIZE_IMAGE:-4}
+      
+      # HuggingFace Configuration
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_HOME=/app/.cache/huggingface
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface/models
+      - HF_HUB_CACHE=/app/.cache/huggingface/hub
+    volumes:
+      # Persistent model cache
+      - huggingface_cache:/app/.cache/huggingface
+      # Optional: Mount local model cache
+      # - ~/.cache/huggingface:/app/.cache/huggingface
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  huggingface_cache:
+    driver: local
