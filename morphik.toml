@@ -47,7 +47,7 @@ model = "azure_completion" # Model for the agent logic
 [completion]
 model = "azure_completion" # Reference to a key in registered_models
 default_max_tokens = "1000"
-default_temperature = 0.5
+default_temperature = 0.3
 
 [database]
 provider = "postgres"
@@ -119,6 +119,10 @@ port = 6379
 [graph]
 model = "azure_completion"
 enable_entity_resolution = true
+
+# [graph]
+# mode="api"
+# base_url="https://graph-api.morphik.ai"
 
 [telemetry]
 telemetry_enabled = false
