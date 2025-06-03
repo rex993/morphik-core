@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -171,7 +171,7 @@ app.add_middleware(
 # Security
 security = HTTPBearer()
 
-async def verify_api_key(credentials: HTTPAuthorizationCredentials = security):
+async def verify_api_key(credentials: HTTPAuthorizationCredentials):
     """Verify API key authentication."""
     if credentials.credentials != API_KEY:
         raise HTTPException(
@@ -271,7 +271,7 @@ async def root():
 @app.post("/embeddings", response_model=EmbeddingResponse)
 async def generate_embeddings(
     request: EmbeddingRequest,
-    api_key: str = security
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """
     Generate ColPali embeddings for text or image inputs.
@@ -279,7 +279,7 @@ async def generate_embeddings(
     Compatible with the existing ColpaliApiEmbeddingModel client.
     """
     # Verify API key
-    await verify_api_key(HTTPAuthorizationCredentials(scheme="Bearer", credentials=api_key))
+    await verify_api_key(credentials)
     
     start_time = time.time()
     
