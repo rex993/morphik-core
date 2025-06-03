@@ -80,7 +80,7 @@ print(f'MPS available: {torch.backends.mps.is_available() if hasattr(torch.backe
 
 # Set default values if not in environment
 export COLPALI_HOST=${COLPALI_HOST:-"127.0.0.1"}
-export COLPALI_PORT=${COLPALI_PORT:-"8000"}
+export COLPALI_PORT=${COLPALI_PORT:-"8765"}
 export COLPALI_LOG_LEVEL=${COLPALI_LOG_LEVEL:-"INFO"}
 
 echo -e "${GREEN}Starting service on http://${COLPALI_HOST}:${COLPALI_PORT}${NC}"

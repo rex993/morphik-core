@@ -40,8 +40,8 @@ device = None
 API_KEY = os.getenv("COLPALI_API_KEY", "your-secret-api-key")
 MODEL_NAME = os.getenv("COLPALI_MODEL_NAME", "tsystems/colqwen2.5-3b-multilingual-v1.0")
 DEVICE = os.getenv("COLPALI_DEVICE", "auto")  # auto, cuda, mps, cpu
-BATCH_SIZE_TEXT = int(os.getenv("COLPALI_BATCH_SIZE_TEXT", "8"))
-BATCH_SIZE_IMAGE = int(os.getenv("COLPALI_BATCH_SIZE_IMAGE", "4"))
+BATCH_SIZE_TEXT = int(os.getenv("COLPALI_BATCH_SIZE_TEXT", "1"))
+BATCH_SIZE_IMAGE = int(os.getenv("COLPALI_BATCH_SIZE_IMAGE", "1"))
 HOST = os.getenv("COLPALI_HOST", "0.0.0.0")
 PORT = int(os.getenv("COLPALI_PORT", "8765"))
 LOG_LEVEL = os.getenv("COLPALI_LOG_LEVEL", "INFO")
@@ -134,9 +134,11 @@ async def unload_colpali_model():
         del colpali_processor
         colpali_processor = None
     
-    # Clear GPU cache if using CUDA
+    # Clear GPU cache for all device types
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+    elif torch.backends.mps.is_available():
+        torch.mps.empty_cache()
     
     logger.info("Model cleanup completed")
 
@@ -231,6 +233,13 @@ async def generate_embeddings_batch(inputs: List[Any], input_type: str) -> List[
             embeddings_np = embeddings_tensor.to(torch.float32).cpu().numpy()
             batch_embeddings = embeddings_np.tolist()
             all_embeddings.extend(batch_embeddings)
+            
+            # Clear memory after each batch
+            del embeddings_tensor, embeddings_np, processed
+            if device == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif device == "mps" and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
         
         return all_embeddings
         
