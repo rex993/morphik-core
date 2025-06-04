@@ -188,7 +188,7 @@ if [ $# -gt 0 ]; then\n\
     exec "$@"\n\
 else\n\
     # Otherwise, execute the default command (uv run start_server.py)\n\
-    exec uv run uvicorn core.api:app --host $HOST --port $PORT --loop asyncio --http auto --ws auto --lifespan auto\n\
+    exec uvicorn core.api:app --host $HOST --port $PORT --loop asyncio --http auto --ws auto --lifespan auto\n\
 fi\n\
 ' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
