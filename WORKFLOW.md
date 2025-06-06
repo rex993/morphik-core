@@ -5,6 +5,7 @@
 This guide covers best practices for managing a forked repository where:
 - `main` branch stays synced with the upstream repository
 - `dev` branch contains your custom development work
+- `stable` branch contains production-ready releases
 - You periodically incorporate upstream changes into your work
 
 ## Strategy Comparison
@@ -103,17 +104,41 @@ git checkout -b feature/name upstream/main
 git checkout -b feature/name dev
 ```
 
-### 5. Release Strategy
-When you want to create a stable version:
+### 5. Release Strategy with Stable Branch
+Maintain a dedicated `stable` branch for production releases:
 ```bash
-# Create a release branch
+# When dev is ready for production
 git checkout dev
-git checkout -b release/v1.0
+git pull origin dev
 
-# This preserves your stable version while dev continues
+# Run tests, ensure everything works
+
+# Merge to stable
+git checkout stable
+git merge dev --no-ff -m "Release v1.2.0: Description of changes"
+git tag v1.2.0
+git push origin stable --tags
 ```
 
-### 6. Safety Measures
+### 6. Hotfix Workflow (for urgent stable fixes)
+```bash
+# Create hotfix from stable
+git checkout stable
+git checkout -b hotfix/critical-fix
+# ... fix ...
+git commit
+
+# Merge to stable
+git checkout stable
+git merge hotfix/critical-fix --no-ff
+git tag v1.2.1
+
+# Backport to dev
+git checkout dev
+git merge hotfix/critical-fix
+```
+
+### 7. Safety Measures
 ```bash
 # Before risky syncs
 git branch dev-backup
@@ -121,6 +146,65 @@ git branch dev-backup
 # Create tags for important states
 git tag dev-stable-2024-12
 ```
+
+## Stable Branch Workflow (Recommended)
+
+### Branch Structure
+- **`main`** - Mirrors upstream repository (always clean)
+- **`dev`** - Active development with all your custom features  
+- **`stable`** - Production-ready releases from dev
+
+### Daily Development Flow
+```bash
+# Work on feature branches from dev
+git checkout dev
+git checkout -b feature/new-feature
+# ... work ...
+git commit
+git checkout dev
+git merge feature/new-feature
+```
+
+### Release Management
+
+**When to update stable:**
+- ✅ After thorough testing on dev
+- ✅ When you need a production deployment
+- ✅ After significant feature completion
+- ✅ Before major upstream changes (preserve working version)
+
+**When NOT to update stable:**
+- ❌ Directly after upstream sync (test first!)
+- ❌ With experimental features
+- ❌ Without proper testing
+
+**Branch Protection Best Practices:**
+- Keep `stable` protected - no direct commits
+- Always merge from `dev` or hotfix branches
+- Tag every stable release
+- Consider automated tests before allowing merges
+
+### Complete Release Process
+```bash
+# 1. Ensure dev has latest upstream
+./sync-upstream.sh
+
+# 2. Test thoroughly on dev branch
+# Run full test suite, manual testing, etc.
+
+# 3. When ready, promote to stable
+git checkout stable
+git merge dev --no-ff -m "Release v1.3.0: Add LibreOffice support"
+git tag v1.3.0
+git push origin stable --tags
+
+# 4. Deploy from stable branch
+```
+
+This approach gives you:
+- `main` for tracking upstream
+- `dev` for active development and experimentation
+- `stable` for production deployments with confidence
 
 ## Best Practices
 
