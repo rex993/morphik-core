@@ -45,6 +45,17 @@ If you'd like to self-host Morphik, you can find the dedicated instruction [here
 
 **Important**: Due to limited resources, we cannot provide full support for open-source deployments. We have an installation guide, and a [Discord community](https://discord.gg/BwMtv3Zaju) to help, but we can't guarantee full support.
 
+### System Requirements
+
+For optimal document processing capabilities, Morphik requires the following system dependencies:
+
+- **LibreOffice**: Required for processing Microsoft Office documents (DOCX, PPTX, XLSX, etc.)
+  - Ubuntu/Debian: `sudo apt-get install libreoffice`
+  - macOS: `brew install libreoffice`
+  - RHEL/CentOS: `sudo yum install libreoffice`
+
+**Note**: LibreOffice is automatically included in our Docker images. If running directly, ensure it's installed for full document format support.
+
 ## Using Morphik
 
 Once you've signed up for Morphik, you can get started with ingesting and search your data right away.

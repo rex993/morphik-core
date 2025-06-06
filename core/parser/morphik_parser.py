@@ -263,6 +263,25 @@ class MorphikParser(BaseParser):
 
     async def _parse_document(self, file: bytes, filename: str) -> Tuple[Dict[str, Any], str]:
         """Parse document using unstructured"""
+        # Check if this is an Office document that will be handled by ColPali/LibreOffice later
+        office_extensions = (".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls")
+        if filename.lower().endswith(office_extensions):
+            # Check if ColPali is enabled by looking at the config
+            try:
+                config = load_config()
+                morphik_config = config.get("morphik", {})
+                colpali_enabled = morphik_config.get("enable_colpali", False)
+                colpali_mode = morphik_config.get("colpali_mode", "off")
+                
+                if colpali_enabled and colpali_mode != "off":
+                    # Return minimal text to avoid unstructured dependency errors
+                    # The actual processing will happen in _create_chunks_multivector using LibreOffice (soffice)
+                    # This avoids the need for unstructured[docx], unstructured[pptx], etc. dependencies
+                    logger.info(f"Skipping unstructured parsing for {filename} - will use LibreOffice with ColPali")
+                    return {}, f"Office document: {filename}"
+            except Exception as e:
+                logger.debug(f"Could not check ColPali config: {e}")
+        
         # Choose a lighter parsing strategy for text-based files. Using
         # `hi_res` on plain PDFs/Word docs invokes OCR which can be 20-30×
         # slower.  A simple extension check covers the majority of cases.
