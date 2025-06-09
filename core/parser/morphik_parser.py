@@ -274,9 +274,9 @@ class MorphikParser(BaseParser):
                 colpali_mode = morphik_config.get("colpali_mode", "off")
                 
                 if colpali_enabled and colpali_mode != "off":
-                    # Return minimal text to avoid unstructured dependency errors
+                    # Return minimal text because ColPali will handle this document as images
                     # The actual processing will happen in _create_chunks_multivector using LibreOffice (soffice)
-                    # This avoids the need for unstructured[docx], unstructured[pptx], etc. dependencies
+                    # to convert to PDF, then pdf2image to create image chunks for ColPali processing
                     logger.info(f"Skipping unstructured parsing for {filename} - will use LibreOffice with ColPali")
                     return {}, f"Office document: {filename}"
             except Exception as e:
