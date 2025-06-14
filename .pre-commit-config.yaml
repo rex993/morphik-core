@@ -21,12 +21,12 @@ repos:
     -   id: isort
         name: isort (python)
         args: [--profile=black, --line-length=120]
--   repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-    -   id: black
-        language_version: python3.12
-        args: [--line-length=120]
+# -   repo: https://github.com/psf/black
+#     rev: 24.4.2
+#     hooks:
+#     -   id: black
+#         language_version: python3.12
+#         args: [--line-length=120]
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.6
     hooks:
