@@ -263,24 +263,9 @@ class MorphikParser(BaseParser):
 
     async def _parse_document(self, file: bytes, filename: str) -> Tuple[Dict[str, Any], str]:
         """Parse document using unstructured"""
-        # Check if this is an Office document that will be handled by ColPali/LibreOffice later
-        office_extensions = (".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls")
-        if filename.lower().endswith(office_extensions):
-            # Check if ColPali is enabled by looking at the config
-            try:
-                config = load_config()
-                morphik_config = config.get("morphik", {})
-                colpali_enabled = morphik_config.get("enable_colpali", False)
-                colpali_mode = morphik_config.get("colpali_mode", "off")
-                
-                if colpali_enabled and colpali_mode != "off":
-                    # Return minimal text because ColPali will handle this document as images
-                    # The actual processing will happen in _create_chunks_multivector using LibreOffice (soffice)
-                    # to convert to PDF, then pdf2image to create image chunks for ColPali processing
-                    logger.info(f"Skipping unstructured parsing for {filename} - will use LibreOffice with ColPali")
-                    return {}, f"Office document: {filename}"
-            except Exception as e:
-                logger.debug(f"Could not check ColPali config: {e}")
+        # NOTE: We always extract text from Office documents, even when ColPali is enabled
+        # This ensures the text column in vector_embeddings contains actual content
+        # ColPali will still convert these to PDF for image-based processing later
         
         # Choose a lighter parsing strategy for text-based files. Using
         # `hi_res` on plain PDFs/Word docs invokes OCR which can be 20-30×
@@ -305,13 +290,35 @@ class MorphikParser(BaseParser):
         )
 
         text = "\n\n".join(str(element) for element in elements if str(element).strip())
-        return {}, text
+        
+        # Sanitize text to remove null characters and other problematic Unicode
+        sanitized_text = self._sanitize_text(text)
+        return {}, sanitized_text
 
     async def parse_file_to_text(self, file: bytes, filename: str) -> Tuple[Dict[str, Any], str]:
         """Parse file content into text based on file type"""
         if self._is_video_file(file, filename):
             return await self._parse_video(file)
         return await self._parse_document(file, filename)
+
+    def _sanitize_text(self, text: str) -> str:
+        """Remove null characters and other problematic Unicode that cause PostgreSQL JSON errors"""
+        if not text:
+            return text
+        
+        # Remove null bytes and other control characters that cause JSON/PostgreSQL issues
+        # Keep common whitespace (space, tab, newline, carriage return)
+        sanitized = ""
+        for char in text:
+            # Allow printable characters and common whitespace
+            if char.isprintable() or char in ('\n', '\r', '\t', ' '):
+                sanitized += char
+            elif ord(char) == 0:  # Null character
+                # Replace with space to maintain text flow
+                sanitized += ' '
+            # Skip other problematic control characters
+        
+        return sanitized
 
     async def split_text(self, text: str) -> List[Chunk]:
         """Split text into chunks using configured chunking strategy"""
