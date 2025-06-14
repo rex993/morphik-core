@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict
 
 import toml
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from core.auth_utils import verify_token

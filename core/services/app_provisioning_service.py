@@ -13,9 +13,9 @@ import boto3  # local import to avoid mandatory dependency when S3 unused
 import botocore
 import jwt
 from dotenv import load_dotenv
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
 
 from core.config import get_settings
 from core.models.app_metadata import AppMetadataModel

@@ -289,9 +289,11 @@ class UserService:
         # ------------------------------------------------------------------
         # Persist lightweight *apps* record + enforce name uniqueness -------
         # ------------------------------------------------------------------
-        from core.models.apps import AppModel  # Local import to avoid cycles
-        from sqlalchemy import select, insert, text
         import uuid as _uuid
+
+        from sqlalchemy import insert, select, text
+
+        from core.models.apps import AppModel  # Local import to avoid cycles
 
         async with self.db.async_session() as session:
             # Ensure uniqueness of app name per user

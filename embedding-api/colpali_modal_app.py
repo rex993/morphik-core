@@ -1,9 +1,9 @@
-import modal
-import os
 import base64
 import io
-import time
+import os
 from typing import List
+
+import modal
 from pydantic import BaseModel
 
 # --- Modal App Definition ---
@@ -79,6 +79,7 @@ class ColpaliModalService:
 
     def _decode_image(self, base64_string: str):
         from PIL.Image import open as open_image
+
         # Basic check if it might be a data URI
         if base64_string.startswith("data:"):
             try:
@@ -94,7 +95,6 @@ class ColpaliModalService:
     @modal.fastapi_endpoint(method="POST", label="embeddings")
     async def generate_embeddings_endpoint(self, payload: EmbeddingRequest):
         import torch
-        import numpy as np
         from fastapi.responses import JSONResponse
         input_type = payload.input_type
         inputs_data = payload.inputs
@@ -109,7 +109,8 @@ class ColpaliModalService:
                 processed_batch = None
                 if input_type == "image":
                     pil_images = [self._decode_image(b64_str) for b64_str in batch_input_data]
-                    if not pil_images: continue
+                    if not pil_images: 
+                        continue
                     processed_batch = self.processor.process_images(pil_images).to(self.device)
                 elif input_type == "text":
                     if not all(isinstance(text, str) for text in batch_input_data):

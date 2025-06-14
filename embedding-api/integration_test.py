@@ -10,15 +10,15 @@ import base64
 import io
 import os
 import sys
-from typing import List
 
 # Add the core directory to the Python path to import Morphik modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 try:
+    from PIL import Image, ImageDraw
+
     from core.embedding.colpali_api_embedding_model import ColpaliApiEmbeddingModel
     from core.models.chunk import Chunk
-    from PIL import Image, ImageDraw
 except ImportError as e:
     print(f"❌ Failed to import Morphik modules: {e}")
     print("Make sure you're running this from the embedding-api directory")
@@ -61,7 +61,7 @@ async def test_morphik_integration():
         
         try:
             query_embedding = await embedding_model.embed_for_query(test_query)
-            print(f"✅ Query embedding generated successfully")
+            print("✅ Query embedding generated successfully")
             print(f"   Embedding shape: {len(query_embedding)} vectors")
             print(f"   Vector dimensions: {len(query_embedding[0])}")
         except Exception as e:
@@ -85,7 +85,7 @@ async def test_morphik_integration():
         
         try:
             text_embeddings = await embedding_model.embed_for_ingestion(text_chunks)
-            print(f"✅ Text ingestion embeddings generated successfully")
+            print("✅ Text ingestion embeddings generated successfully")
             print(f"   Number of chunks processed: {len(text_embeddings)}")
             print(f"   First embedding shape: {len(text_embeddings[0])} vectors")
         except Exception as e:
@@ -105,7 +105,7 @@ async def test_morphik_integration():
         
         try:
             image_embeddings = await embedding_model.embed_for_ingestion(image_chunks)
-            print(f"✅ Image ingestion embeddings generated successfully")
+            print("✅ Image ingestion embeddings generated successfully")
             print(f"   Number of image chunks processed: {len(image_embeddings)}")
             print(f"   Image embedding shape: {len(image_embeddings[0])} vectors")
         except Exception as e:
@@ -118,7 +118,7 @@ async def test_morphik_integration():
         
         try:
             mixed_embeddings = await embedding_model.embed_for_ingestion(mixed_chunks)
-            print(f"✅ Mixed ingestion embeddings generated successfully")
+            print("✅ Mixed ingestion embeddings generated successfully")
             print(f"   Total chunks processed: {len(mixed_embeddings)}")
             print(f"   Text chunks: {len(text_chunks)}")
             print(f"   Image chunks: {len(image_chunks)}")
@@ -131,7 +131,7 @@ async def test_morphik_integration():
         try:
             empty_embeddings = await embedding_model.embed_for_ingestion([])
             if len(empty_embeddings) == 0:
-                print(f"✅ Empty input handled correctly")
+                print("✅ Empty input handled correctly")
             else:
                 print(f"❌ Empty input handling unexpected result: {len(empty_embeddings)}")
                 return False
@@ -153,7 +153,7 @@ async def test_performance():
     print("=" * 30)
     
     try:
-        embedding_model = ColpaliApiEmbeddingModel()
+        # embedding_model = ColpaliApiEmbeddingModel()
         
         # Large text batch
         import time
@@ -167,10 +167,10 @@ async def test_performance():
         ]
         
         start_time = time.time()
-        perf_embeddings = await embedding_model.embed_for_ingestion(large_text_batch)
+        # perf_embeddings = await embedding_model.embed_for_ingestion(large_text_batch)
         elapsed_time = time.time() - start_time
         
-        print(f"✅ Performance test completed")
+        print("✅ Performance test completed")
         print(f"   Processed {len(large_text_batch)} text chunks")
         print(f"   Total time: {elapsed_time:.2f}s")
         print(f"   Average per chunk: {elapsed_time/len(large_text_batch):.3f}s")

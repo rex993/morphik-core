@@ -2,7 +2,7 @@ import os
 import re
 from collections import ChainMap
 from functools import lru_cache
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional
 
 import tomli
 from dotenv import load_dotenv

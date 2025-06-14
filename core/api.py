@@ -18,10 +18,10 @@ from core.agent import MorphikAgent
 from core.app_factory import lifespan
 from core.auth_utils import verify_token
 from core.config import get_settings
-from core.logging_config import setup_logging
 from core.database.postgres_database import PostgresDatabase
 from core.dependencies import get_redis_pool
 from core.limits_utils import check_and_increment_limits
+from core.logging_config import setup_logging
 from core.models.auth import AuthContext, EntityType
 from core.models.chat import ChatMessage
 from core.models.completion import ChunkSource, CompletionResponse

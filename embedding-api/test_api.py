@@ -8,9 +8,7 @@ This script tests the API service with sample text and image inputs.
 import asyncio
 import base64
 import io
-import json
 import time
-from typing import Dict, List
 
 import httpx
 from PIL import Image, ImageDraw
@@ -28,7 +26,7 @@ async def test_health_check():
             response = await client.get(f"{API_BASE_URL}/health", timeout=10.0)
             if response.status_code == 200:
                 health_data = response.json()
-                print(f"✅ Health check passed")
+                print("✅ Health check passed")
                 print(f"   Status: {health_data['status']}")
                 print(f"   Model loaded: {health_data['model_loaded']}")
                 print(f"   Device: {health_data['device']}")
@@ -90,7 +88,7 @@ async def test_text_embeddings():
                 result = response.json()
                 embeddings = result["embeddings"]
                 
-                print(f"✅ Text embeddings generated successfully")
+                print("✅ Text embeddings generated successfully")
                 print(f"   Processed {len(test_texts)} texts in {elapsed_time:.2f}s")
                 print(f"   Average time per text: {elapsed_time/len(test_texts):.3f}s")
                 print(f"   Embedding shape: {len(embeddings[0])} vectors x {len(embeddings[0][0])} dimensions")
@@ -136,7 +134,7 @@ async def test_image_embeddings():
                 result = response.json()
                 embeddings = result["embeddings"]
                 
-                print(f"✅ Image embeddings generated successfully")
+                print("✅ Image embeddings generated successfully")
                 print(f"   Processed {len(test_images)} images in {elapsed_time:.2f}s")
                 print(f"   Average time per image: {elapsed_time/len(test_images):.3f}s")
                 print(f"   Embedding shape: {len(embeddings[0])} vectors x {len(embeddings[0][0])} dimensions")
@@ -174,7 +172,7 @@ async def test_authentication():
             )
             
             if response.status_code == 401:
-                print(f"✅ Authentication test passed (correctly rejected invalid key)")
+                print("✅ Authentication test passed (correctly rejected invalid key)")
                 return True
             else:
                 print(f"❌ Authentication test failed: expected 401, got {response.status_code}")
@@ -209,7 +207,7 @@ async def test_error_handling():
             )
             
             if response.status_code == 400:
-                print(f"✅ Error handling test passed (correctly rejected invalid input_type)")
+                print("✅ Error handling test passed (correctly rejected invalid input_type)")
                 return True
             else:
                 print(f"❌ Error handling test failed: expected 400, got {response.status_code}")

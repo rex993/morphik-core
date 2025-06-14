@@ -1201,7 +1201,7 @@ class DocumentService:
 
         try:
             import subprocess
-            
+
             # Get the base filename without extension
             base_filename = os.path.splitext(os.path.basename(temp_input_path))[0]
             output_dir = os.path.dirname(temp_pdf_path)

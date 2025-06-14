@@ -5,14 +5,13 @@ A lightweight FastAPI service for ColPali embeddings that can run standalone or 
 Compatible with the existing ColpaliApiEmbeddingModel client.
 """
 
-import asyncio
 import base64
 import io
 import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import torch
 import uvicorn
