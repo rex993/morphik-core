@@ -1,11 +1,11 @@
 [api]
-host = "0.0.0.0"
+host = "0.0.0.0" # Needs to be "0.0.0.0" for docker
 port = 8000
 reload = true
 
 [auth]
 jwt_algorithm = "HS256"
-dev_mode = true  # Enabled by default for easier local development
+dev_mode = false  # Enabled by default for easier local development
 dev_entity_id = "dev_user"  # Default dev user ID
 dev_entity_type = "developer"  # Default dev entity type
 dev_permissions = ["read", "write", "admin"]  # Default dev permissions
@@ -22,6 +22,10 @@ azure_completion = { model_name = "${AZURE_MODEL_NAME}", api_base = "${AZURE_API
 # Anthropic models
 claude_opus = { model_name = "claude-3-opus-20240229" }
 claude_sonnet = { model_name = "claude-3-7-sonnet-latest" }
+
+# Google Gemini models
+# gemini_flash = { model_name = "gemini/gemini-2.5-flash-preview-05-20" } # gemini-2.5-flash-preview-05-20
+gemini_flash = { model_name = "gemini/gemini-2.5-pro-preview-06-05" } # {model_name = "o3-2025-04-16"} #  { model_name = "claude-3-7-sonnet-latest"} #  { model_name = "gemini/gemini-2.5-flash-preview-05-20" } # gemini-2.5-flash-preview-05-20
 
 # Ollama models (modify api_base based on your deployment)
 # - Local Ollama: "http://localhost:11434" (default)
@@ -63,20 +67,20 @@ retry_delay = 1.0        # Initial delay between retries in seconds
 [embedding]
 model = "azure_embedding"  # Reference to registered model
 dimensions = 1536
-similarity_metric = "cosine"
+similarity_metric = "dotProduct"
 
 [parser]
 chunk_size = 6000
 chunk_overlap = 300
 use_unstructured_api = false
 use_contextual_chunking = false
-contextual_chunking_model = "ollama_qwen_vision"  # Reference to a key in registered_models
+contextual_chunking_model = "openai_gpt4-1-mini"  # Reference to a key in registered_models
 
 [document_analysis]
-model = "ollama_qwen_vision"  # Reference to a key in registered_models
+model = "openai_gpt4-1-mini"  # Reference to a key in registered_models
 
 [parser.vision]
-model = "ollama_qwen_vision"  # Reference to a key in registered_models
+model = "openai_gpt4-1-mini"  # Reference to a key in registered_models
 frame_sample_rate = -1  # Set to -1 to disable frame captioning
 
 [reranker]
@@ -93,9 +97,14 @@ provider = "local"
 storage_path = "./storage"
 
 # [storage]
-# provider = "aws-s3"
-# region = "us-east-2"
-# bucket_name = "morphik-s3-storage"
+# provider = "local"
+# storage_path = "./storage"
+
+[storage]
+provider = "aws-s3"
+region = "us-east-2"
+bucket_name = "morphik-storage"
+storage_path = "morphik-storage"
 
 [vector_store]
 provider = "pgvector"
@@ -106,7 +115,7 @@ batch_size = 4096
 
 [morphik]
 enable_colpali = true
-mode = "self_hosted"  # "cloud" or "self_hosted"
+mode = "cloud"  # "cloud" or "self_hosted"
 api_domain = "api.morphik.ai"  # API domain for cloud URIs
 # Only call the embedding API if colpali_mode is "api"
 morphik_embedding_api_domain = "http://host.docker.internal:8765"  # endpoint for multivector embedding service "http://host.docker.internal:8765" for docker or "http://localhost:8765" for local
@@ -121,15 +130,20 @@ model = "azure_completion"
 enable_entity_resolution = true
 
 # [graph]
-# mode="api"
-# base_url="https://graph-api.morphik.ai"
+# model = "openai_gpt4-1-mini"
+# enable_entity_resolution = true
+
+[graph]
+mode="api"
+model = "openai_gpt4-1-mini"
+base_url="https://graph-api.morphik.ai"
 
 [telemetry]
 telemetry_enabled = false
 honeycomb_enabled = false
 honeycomb_endpoint = "https://api.honeycomb.io"
 honeycomb_proxy_endpoint = "https://otel-proxy.onrender.com"
-service_name = "databridge-core"
+service_name = "databridge-core-hosted"
 otlp_timeout = 10
 otlp_max_retries = 3
 otlp_retry_delay = 1

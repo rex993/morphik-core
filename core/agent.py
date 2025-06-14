@@ -22,6 +22,12 @@ from core.utils.agent_helpers import crop_images_in_display_objects, extract_dis
 
 logger = logging.getLogger(__name__)
 
+
+def _truncate_for_log(obj, limit=100):
+    s = str(obj)
+    return s if len(s) <= limit else s[:limit] + "...(truncated)"
+
+
 # Load environment variables
 load_dotenv(override=True)
 
@@ -197,14 +203,22 @@ when citing different sources. Use markdown formatting for text content to impro
             case _:
                 raise ValueError(f"Unknown tool: {name}")
 
-    async def run(self, query: str, auth: AuthContext) -> str:
+    async def run(self, query: str, auth: AuthContext, conversation_history: list = None) -> str:
         """Synchronously run the agent and return the final answer."""
         # Per-run state to avoid cross-request leakage
         source_map: dict = {}
         messages = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": query},
         ]
+
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history[:-1]:  # Exclude the last message (current user query)
+                messages.append({"role": msg["role"], "content": msg["content"]})
+
+        # Add the current user query
+        messages.append({"role": "user", "content": query})
+
         tool_history = []  # Initialize tool history list
         # Get the full model name from the registered models config
         settings = get_settings()
@@ -370,8 +384,28 @@ when citing different sources. Use markdown formatting for text content to impro
 
                 # Return final content, tool history, display objects and sources
                 display_objects = crop_images_in_display_objects(display_objects)
+
+                # Generate a user-friendly response text from display objects
+                response_text = ""
+                if display_objects:
+                    # Extract text content from display objects for a clean response
+                    text_contents = []
+                    for obj in display_objects:
+                        if obj.get("type") == "text" and obj.get("content"):
+                            text_contents.append(obj["content"])
+
+                    if text_contents:
+                        # Join text contents with proper spacing
+                        response_text = "\n\n".join(text_contents)
+                    else:
+                        # If no text objects, provide a generic response
+                        response_text = "I've found relevant information in the documents. Please see the display objects above for details."
+                else:
+                    # Fallback to original content if no display objects
+                    response_text = msg.content
+
                 return {
-                    "response": msg.content,
+                    "response": response_text,
                     "tool_history": tool_history,
                     "display_objects": display_objects,
                     "sources": sources,
@@ -380,7 +414,7 @@ when citing different sources. Use markdown formatting for text content to impro
             call = msg.tool_calls[0]
             name = call.function.name
             args = json.loads(call.function.arguments)
-            logger.info(f"Tool call detected: {name} with args: {args}")
+            logger.info(f"Tool call detected: {name} with args: {_truncate_for_log(args)}")
 
             # Append assistant text and execute tool
             # logger.info(f"Appending assistant text: {msg}")
@@ -389,7 +423,7 @@ when citing different sources. Use markdown formatting for text content to impro
             messages.append(msg.to_dict(exclude_none=True))
             logger.info(f"Executing tool: {name}")
             result = await self._execute_tool(name, args, auth, source_map)
-            logger.info(f"Tool execution result: {result}")
+            logger.info(f"Tool execution result: {_truncate_for_log(result)}")
 
             # Add tool call and result to history
             tool_history.append({"tool_name": name, "tool_args": args, "tool_result": result})

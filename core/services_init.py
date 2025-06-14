@@ -128,10 +128,10 @@ match settings.COLPALI_MODE:
         colpali_vector_store = None
     case "local":
         colpali_embedding_model = ColpaliEmbeddingModel()
-        colpali_vector_store = MultiVectorStore(uri=settings.POSTGRES_URI, auto_initialize=False)
+        colpali_vector_store = MultiVectorStore(uri=settings.POSTGRES_URI, enable_external_storage=True, auto_initialize=False)
     case "api":
         colpali_embedding_model = ColpaliApiEmbeddingModel()
-        colpali_vector_store = MultiVectorStore(uri=settings.POSTGRES_URI, auto_initialize=False)
+        colpali_vector_store = MultiVectorStore(uri=settings.POSTGRES_URI, enable_external_storage=True, auto_initialize=False)
     case _:
         raise ValueError(f"Unsupported COLPALI_MODE: {settings.COLPALI_MODE}")
 

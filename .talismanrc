@@ -1,1 +1,12 @@
 threshold: medium
+
+fileignoreconfig:
+- filename: install_and_start.sh
+  checksum: a8c83c20d2bc1b1e47f779e1cd20c4a02287a22dc7ade234a9e7e58fe601aecc
+- filename: uv.lock
+  checksum: 789b4562ba8e3ddefaa652dfe648b77a5b3bbfeadedab6f82b56b2782570ad31
+- filename: core/vector_store/multi_vector_store.py
+  checksum: 4680a784c86978decb2b82521545406d2a9d20b961ac351177a8046ef2f0820b
+- filename: scripts/migrate_multivector_to_external_storage.py
+  checksum: 4c1004557ba42b5a705770f5f5d4bd57e6868ff13178fc951cc30c037070ab03
+version: "1.0"

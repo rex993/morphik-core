@@ -18,7 +18,7 @@ import { PreviewMessage } from "./ChatMessages";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
-import { AgentPreviewMessage, AgentUIMessage, ToolCall, DisplayObject, SourceObject } from "./AgentChatMessages";
+import { AgentPreviewMessage, AgentUIMessage, DisplayObject, SourceObject, ToolCall } from "./AgentChatMessages";
 
 interface ChatSectionProps {
   apiBaseUrl: string;
@@ -34,6 +34,19 @@ interface ApiDocumentResponse {
   id?: string;
   filename?: string;
   name?: string;
+}
+
+// Define an interface for the items coming from the chat history API
+// This should be identical or similar to the one in AgentChatSection.tsx
+interface ChatHistoryAPIItem {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  agent_data?: {
+    tool_history?: ToolCall[];
+    display_objects?: DisplayObject[];
+    sources?: SourceObject[];
+  };
 }
 
 /**
@@ -119,6 +132,53 @@ const ChatSection: React.FC<ChatSectionProps> = ({
   const [isAgentMode, setIsAgentMode] = useState(false);
   const [agentMessages, setAgentMessages] = useState<AgentUIMessage[]>([]);
   const [agentStatus, setAgentStatus] = useState<"idle" | "submitted" | "completed">("idle");
+
+  // Load agent messages from chat history when switching to agent mode
+  useEffect(() => {
+    const loadAgentHistory = async () => {
+      if (isAgentMode && chatId && apiBaseUrl && (authToken || apiBaseUrl.includes("localhost"))) {
+        try {
+          const response = await fetch(`${apiBaseUrl}/chat/${chatId}`, {
+            headers: {
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            },
+          });
+          if (response.ok) {
+            const data: ChatHistoryAPIItem[] = await response.json(); // Typed data
+            const agentMessagesFromHistory = data.map((m: ChatHistoryAPIItem): AgentUIMessage => {
+              // Replaced any with ChatHistoryAPIItem, map to AgentUIMessage
+              const baseMessage: AgentUIMessage = {
+                id: generateUUID(),
+                role: m.role,
+                content: m.content,
+                createdAt: new Date(m.timestamp),
+              };
+
+              if (m.role === "assistant" && m.agent_data) {
+                return {
+                  ...baseMessage,
+                  experimental_agentData: {
+                    tool_history: m.agent_data.tool_history || [],
+                    displayObjects: m.agent_data.display_objects || [],
+                    sources: m.agent_data.sources || [],
+                  },
+                };
+              }
+              return baseMessage;
+            });
+            setAgentMessages(agentMessagesFromHistory);
+          }
+        } catch (err) {
+          console.error("Failed to load agent chat history", err);
+        }
+      } else if (!isAgentMode) {
+        // Clear agent messages when switching back to regular chat mode
+        setAgentMessages([]);
+      }
+    };
+
+    loadAgentHistory();
+  }, [isAgentMode, chatId, apiBaseUrl, authToken]);
 
   // Fetch available graphs for dropdown
   const fetchGraphs = useCallback(async () => {
@@ -308,7 +368,10 @@ const ChatSection: React.FC<ChatSectionProps> = ({
           "Content-Type": "application/json",
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        body: JSON.stringify({ query: userMessage.content }),
+        body: JSON.stringify({
+          query: userMessage.content,
+          chat_id: chatId,
+        }),
       });
 
       if (!response.ok) {
@@ -452,7 +515,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
 
         {/* Input Area */}
         <div className="sticky bottom-0 w-full bg-background">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <div className="mx-auto max-w-4xl">
             {/* Controls Row - Folder Selection and Agent Mode */}
             {!isReadonly && (
               <div className="pb-3 pt-2">
