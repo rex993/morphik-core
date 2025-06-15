@@ -312,7 +312,7 @@ const DocumentDetail: React.FC<DocumentDetailProps> = ({
               <AccordionTrigger>Text</AccordionTrigger>
               <AccordionContent>
                 <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">
-                  {JSON.stringify(selectedDocument.system_metadata.content, null, 2)}
+                  {selectedDocument.system_metadata.content as string}
                 </pre>
               </AccordionContent>
             </AccordionItem>
