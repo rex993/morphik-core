@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { RotateCw, Plus, ChevronsLeft, ChevronsRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { RotateCw, Plus, ChevronsLeft, ChevronsRight, MoreVertical, Pencil, Trash2, Search, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -126,11 +126,53 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   collapsed,
   onToggle,
 }) => {
-  const { sessions, isLoading, reload, renameChat, deleteChat } = useChatSessions({ apiBaseUrl, authToken });
+  const [searchQuery, setSearchQuery] = useState("");
+  const { sessions, isLoading, reload, renameChat, deleteChat, searchChats } = useChatSessions({ 
+    apiBaseUrl, 
+    authToken,
+    searchQuery 
+  });
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [newChatName, setNewChatName] = useState("");
+
+  // Local filtering for immediate response
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions;
+    
+    const query = searchQuery.toLowerCase();
+    return sessions.filter(session => {
+      // Search in chat name (highest priority)
+      if (session.name?.toLowerCase().includes(query)) return true;
+      
+      // Search in last message content
+      if (session.lastMessage?.content?.toLowerCase().includes(query)) return true;
+      
+      // Search in agent data if available
+      if (session.lastMessage?.agent_data?.display_objects) {
+        const hasMatch = session.lastMessage.agent_data.display_objects.some(obj => 
+          obj.type === "text" && obj.content?.toLowerCase().includes(query)
+        );
+        if (hasMatch) return true;
+      }
+      
+      // Fallback to message preview search
+      const preview = session.name || generateMessagePreview(
+        session.lastMessage?.content || "",
+        session.lastMessage === null ? undefined : session.lastMessage
+      );
+      return preview.toLowerCase().includes(query);
+    });
+  }, [sessions, searchQuery]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+  };
 
   const handleRenameClick = (chatId: string, currentName: string | null | undefined) => {
     console.log("Rename clicked for:", chatId, currentName);
@@ -196,13 +238,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           </Button>
         </div>
       </div>
+      
+      {/* Search Input */}
+      <div className="px-3 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-9 pr-9 h-8 bg-background border-input"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 hover:bg-muted"
+              onClick={handleClearSearch}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+      
       <ScrollArea className="flex-1">
         <ul className="p-1">
           {isLoading && <li className="py-1 text-center text-xs text-muted-foreground">Loading…</li>}
           {!isLoading && sessions.length === 0 && (
             <li className="px-2 py-1 text-center text-xs text-muted-foreground">No chats yet</li>
           )}
-          {sessions.map(session => (
+          {!isLoading && searchQuery && filteredSessions.length === 0 && (
+            <li className="px-2 py-1 text-center text-xs text-muted-foreground">No chats found</li>
+          )}
+          {filteredSessions.map(session => (
             <li 
               key={session.chatId} 
               className="mb-1 group"

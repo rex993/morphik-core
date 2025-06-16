@@ -1893,6 +1893,115 @@ class PostgresDatabase(BaseDatabase):
             logger.error(f"Error deleting chat conversation: {e}")
             return False
 
+    async def search_chat_conversations(
+        self,
+        query: str,
+        user_id: Optional[str],
+        app_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Search chat conversations by name and content.
+
+        Args:
+            query: Search query string
+            user_id: ID of the user that owns the conversation (required for cloud-mode privacy).
+            app_id: Optional application scope for developer tokens.
+            limit: Maximum number of conversations to return.
+
+        Returns:
+            A list of dictionaries containing matching conversations ordered by relevance.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            async with self.async_session() as session:
+                # Build the base query
+                stmt = select(ChatConversationModel).order_by(ChatConversationModel.updated_at.desc())
+
+                # Apply user and app filters
+                if user_id is not None:
+                    stmt = stmt.where(ChatConversationModel.user_id == user_id)
+                if app_id is not None:
+                    stmt = stmt.where(ChatConversationModel.app_id == app_id)
+
+                # Execute query to get all conversations for filtering
+                res = await session.execute(stmt)
+                convos = res.scalars().all()
+
+                # Filter and score conversations
+                scored_conversations = []
+                for convo in convos:
+                    score = 0
+                    matches = False
+                    
+                    # Extract chat name and last message
+                    chat_name = None
+                    actual_messages = []
+                    
+                    for entry in (convo.history or []):
+                        if isinstance(entry, dict):
+                            if entry.get("type") == "metadata" and entry.get("action") == "rename":
+                                chat_name = entry.get("name", "")
+                            else:
+                                actual_messages.append(entry)
+                    
+                    last_message = actual_messages[-1] if actual_messages else None
+                    
+                    # Score based on chat name match (highest priority)
+                    if chat_name and query.lower() in chat_name.lower():
+                        score += 100
+                        matches = True
+                        # Exact match gets even higher score
+                        if query.lower() == chat_name.lower():
+                            score += 50
+                    
+                    # Search in all message history for comprehensive results
+                    message_matches = 0
+                    for i, msg in enumerate(actual_messages):
+                        if isinstance(msg, dict):
+                            msg_content = str(msg.get("content", "")).lower()
+                            if query.lower() in msg_content:
+                                # Score recent messages higher
+                                if i >= len(actual_messages) - 3:  # Last 3 messages
+                                    score += 15
+                                elif i >= len(actual_messages) - 10:  # Last 10 messages
+                                    score += 10
+                                else:  # Older messages
+                                    score += 5
+                                matches = True
+                                message_matches += 1
+                                
+                                # Stop after finding 3 matches to avoid over-scoring
+                                if message_matches >= 3:
+                                    break
+                    
+                    if matches:
+                        scored_conversations.append((score, convo, chat_name, last_message))
+
+                # Sort by score (descending) and take top results
+                scored_conversations.sort(key=lambda x: x[0], reverse=True)
+                top_conversations = scored_conversations[:limit]
+
+                # Format results
+                conversations: List[Dict[str, Any]] = []
+                for _, convo, chat_name, last_message in top_conversations:
+                    conversations.append(
+                        {
+                            "chat_id": convo.conversation_id,
+                            "updated_at": convo.updated_at,
+                            "created_at": convo.created_at,
+                            "last_message": last_message,
+                            "name": chat_name,
+                        }
+                    )
+
+                return conversations
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error searching chat conversations: %s", exc)
+            return []
+
     def _check_folder_access(self, folder: Folder, auth: AuthContext, permission: str = "read") -> bool:
         """Check if the user has the required permission for the folder."""
         # Developer-scoped tokens: restrict by app_id on folders
