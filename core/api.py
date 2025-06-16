@@ -2392,6 +2392,38 @@ async def list_chat_conversations(
         raise HTTPException(status_code=500, detail="Failed to list chat conversations")
 
 
+@app.get("/chats/search", response_model=List[Dict[str, Any]])
+async def search_chat_conversations(
+    q: str = Query(..., description="Search query"),
+    auth: AuthContext = Depends(verify_token),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Search chat conversations by name and content.
+
+    Args:
+        q: Search query string
+        auth: Authentication context containing user and app identifiers.
+        limit: Maximum number of conversations to return (1-200)
+
+    Returns:
+        A list of matching conversations ordered by relevance.
+    """
+    try:
+        if not q.strip():
+            return []
+            
+        convos = await document_service.db.search_chat_conversations(
+            query=q.strip(),
+            user_id=auth.user_id,
+            app_id=auth.app_id,
+            limit=limit,
+        )
+        return convos
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Error searching chat conversations: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to search chat conversations")
+
+
 @app.put("/chats/{chat_id}")
 async def rename_chat_conversation(
     chat_id: str,
