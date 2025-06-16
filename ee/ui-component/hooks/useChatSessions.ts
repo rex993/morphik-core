@@ -4,6 +4,7 @@ interface ChatSessionMeta {
   chatId: string;
   createdAt?: string;
   updatedAt?: string;
+  name?: string | null;
   lastMessage?: {
     role: string;
     content: string;
@@ -30,6 +31,8 @@ interface UseChatSessionsReturn {
   sessions: ChatSessionMeta[];
   isLoading: boolean;
   reload: () => void;
+  renameChat: (chatId: string, newName: string) => Promise<boolean>;
+  deleteChat: (chatId: string) => Promise<boolean>;
 }
 
 export function useChatSessions({ apiBaseUrl, authToken, limit = 100 }: UseChatSessionsProps): UseChatSessionsReturn {
@@ -51,6 +54,7 @@ export function useChatSessions({ apiBaseUrl, authToken, limit = 100 }: UseChatS
             chatId: c.chat_id,
             createdAt: c.created_at,
             updatedAt: c.updated_at,
+            name: c.name ?? null,
             lastMessage: c.last_message ?? null,
           }))
         );
@@ -68,7 +72,65 @@ export function useChatSessions({ apiBaseUrl, authToken, limit = 100 }: UseChatS
     fetchSessions();
   }, [fetchSessions]);
 
-  return { sessions, isLoading, reload: fetchSessions };
+  const renameChat = useCallback(
+    async (chatId: string, newName: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/chats/${chatId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify({ name: newName }),
+        });
+        
+        if (res.ok) {
+          // Update the local state
+          setSessions(prev =>
+            prev.map(session =>
+              session.chatId === chatId ? { ...session, name: newName } : session
+            )
+          );
+          return true;
+        } else {
+          console.error(`Failed to rename chat: ${res.status} ${res.statusText}`);
+          return false;
+        }
+      } catch (err) {
+        console.error("Failed to rename chat", err);
+        return false;
+      }
+    },
+    [apiBaseUrl, authToken]
+  );
+
+  const deleteChat = useCallback(
+    async (chatId: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/chats/${chatId}`, {
+          method: "DELETE",
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+        });
+        
+        if (res.ok) {
+          // Update the local state
+          setSessions(prev => prev.filter(session => session.chatId !== chatId));
+          return true;
+        } else {
+          console.error(`Failed to delete chat: ${res.status} ${res.statusText}`);
+          return false;
+        }
+      } catch (err) {
+        console.error("Failed to delete chat", err);
+        return false;
+      }
+    },
+    [apiBaseUrl, authToken]
+  );
+
+  return { sessions, isLoading, reload: fetchSessions, renameChat, deleteChat };
 }
 
 // New hook for PDF-specific chat session management
